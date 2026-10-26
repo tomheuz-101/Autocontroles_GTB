@@ -85,7 +85,8 @@
                 <div id="printable-area" class="bg-white rounded-xl shadow-md p-8 space-y-6">
                     <div class="flex justify-between items-start border-b border-slate-200 pb-6">
                         <div>
-                            <h3 class="text-xl font-black text-slate-900">GTB SERVICES & SOLUTIONS</h3>
+                            <!-- Nom de l'entreprise modifiable au clic -->
+                            <h3 id="entreprise-nom-display" onclick="editEntrepriseNom()" class="text-xl font-black text-slate-900 cursor-pointer hover:text-blue-900 transition" title="Cliquez pour modifier le nom de l'entreprise">GTB SERVICES & SOLUTIONS</h3>
                             <p class="text-xs text-slate-500">Sécurisé & Cloud</p>
                         </div>
                         <div class="text-right">
@@ -153,15 +154,24 @@
     </div>
 
     <script>
-        // ⚠️ REMPLACEZ LES DEUX LIGNES CI-DESSOUS PAR VOS CLÉS SUPABASE (Projets Settings > API)
-        const SUPABASE_URL = 'https://ujbcecopceoqdtelgfue.supabase.co';
+        // ⚠️ VOS CLÉS SUPABASE CORRECTES (Sans /rest/v1 à la fin)
+ const SUPABASE_URL = 'https://ujbcecopceoqdtelgfue.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqYmNlY29wY2VvcWR0ZWxnZnVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwNDc4NTUsImV4cCI6MjEwODYyMzg1NX0.r3ZXdLQ2VaA91EePPydRnnr4lypkKfKdpPFSiaPWyLY';
-        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let currentUser = null;
         let userRole = 'technician';
         let templates = [];
         document.getElementById('chantier-date').valueAsDate = new Date();
+
+        // Fonction pour modifier le nom de l'entreprise au clic
+        function editEntrepriseNom() {
+            const currentName = document.getElementById('entreprise-nom-display').textContent;
+            const nouveauNom = prompt("Entrez le nouveau nom de l'entreprise :", currentName);
+            if(nouveauNom && nouveauNom.trim() !== "") {
+                document.getElementById('entreprise-nom-display').textContent = nouveauNom.trim();
+            }
+        }
 
         // Vérification automatique de la session utilisateur
         async function checkUserSession() {
@@ -181,7 +191,6 @@
             
             document.getElementById('user-role-badge').textContent = `${currentUser.email} (${userRole.toUpperCase()})`;
 
-            // Afficher les fonctionnalités d'administration uniquement si le rôle est admin
             if (userRole === 'admin') {
                 document.getElementById('btn-history').classList.remove('hidden');
                 document.getElementById('btn-admin').classList.remove('hidden');
@@ -300,6 +309,25 @@
             canvas.addEventListener('mousedown', (e) => { drawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); });
             canvas.addEventListener('mousemove', (e) => { if(!drawing) return; ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); });
             window.addEventListener('mouseup', () => { drawing = false; });
+            
+            // Support tactile pour tablettes/smartphones
+            canvas.addEventListener('touchstart', (e) => {
+                drawing = true;
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                ctx.beginPath();
+                ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+                e.preventDefault();
+            });
+            canvas.addEventListener('touchmove', (e) => {
+                if(!drawing) return;
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+                ctx.stroke();
+                e.preventDefault();
+            });
+            canvas.addEventListener('touchend', () => { drawing = false; });
         }
         setupCanvas('canvas-tech'); setupCanvas('canvas-client');
         function clearCanvas(type) { const c = document.getElementById(`canvas-${type}`); c.getContext('2d').clearRect(0,0,c.width,c.height); }
