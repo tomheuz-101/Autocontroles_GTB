@@ -486,6 +486,7 @@
 
             const templateData = {
                 id: editingTemplateId || ('tpl-' + Date.now()),
+                name: title, // Remplit la colonne "name" exigée par la base de données
                 title: title,
                 category: document.getElementById('tpl-edit-cat').value || 'GTB',
                 description: document.getElementById('tpl-edit-desc').value || '',
