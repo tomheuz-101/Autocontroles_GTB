@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autocontrôle GTB - Chantiers</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e3a8a">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body * { visibility: hidden; }
+            #printable-area, #printable-area * { visibility: visible; }
+            #printable-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 10px; background: white !important; }
+            .no-print { display: none !important; }
+        }
+        canvas { touch-action: none; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+
+    <!-- En-tête Principal -->
+    <header class="bg-blue-900 text-white shadow-md no-print">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-10 bg-blue-700 text-white flex items-center justify-center font-bold rounded-lg text-lg">GT</div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide">GTB Check-Control</h1>
+                    <p class="text-xs text-blue-200">Application mobile chantiers GTB</p>
+                </div>
+            </div>
+            <nav class="flex gap-2">
+                <button onclick="switchTab('fill')" id="btn-fill" class="px-4 py-2 bg-blue-700 hover:bg-blue-600 rounded-lg text-sm font-medium transition shadow-sm">Créer / Remplir</button>
+                <button onclick="switchTab('history')" id="btn-history" class="px-4 py-2 bg-blue-800 hover:bg-blue-600 rounded-lg text-sm font-medium transition shadow-sm">Historique</button>
+                <button onclick="switchTab('admin')" id="btn-admin" class="px-4 py-2 bg-blue-800 hover:bg-blue-600 rounded-lg text-sm font-medium transition shadow-sm">Administration</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+
+        <!-- ONGLET REMPLISSAGE -->
+        <section id="tab-fill" class="space-y-6">
+            <div class="bg-white rounded-xl shadow-md p-6 no-print">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <span>📝</span> Nouvelle Fiche d'Autocontrôle
+                    </h2>
+                    <div class="w-full sm:w-auto">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Choisir le modèle :</label>
+                        <select id="template-selector" onchange="loadSelectedTemplate()" class="w-full sm:w-72 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-50">
+                            <!-- Dynamique -->
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Métadonnées Chantier -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Nom du Chantier *</label>
+                        <input type="text" id="chantier-nom" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white" placeholder="Ex: Siège Social Tour A">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Client</label>
+                        <input type="text" id="chantier-client" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white" placeholder="Ex: Nexity">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Technicien *</label>
+                        <input type="text" id="chantier-tech" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white" placeholder="Prénom Nom">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Date</label>
+                        <input type="date" id="chantier-date" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ZONE IMPRIMABLE -->
+            <div id="printable-area" class="bg-white rounded-xl shadow-md p-8 space-y-6">
+                <div class="flex justify-between items-start border-b border-slate-200 pb-6">
+                    <div class="flex items-center gap-3">
+                        <div id="company-logo-container" class="h-10 w-10 bg-blue-900 text-white flex items-center justify-center font-bold rounded-lg text-lg">GT</div>
+                        <div>
+                            <h3 id="pdf-company-name" class="text-xl font-black text-slate-900">GTB SERVICES & SOLUTIONS</h3>
+                            <p id="pdf-company-siret" class="text-xs text-slate-500">SIRET : 123 456 789 00012</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <h2 class="text-lg font-bold text-blue-900 uppercase tracking-wide">FICHE D'AUTOCONTRÔLE GTB</h2>
+                        <p id="pdf-template-title" class="text-sm font-semibold text-slate-700">Type : Automates</p>
+                        <p class="text-xs text-slate-400 mt-1">Réf: AC-GTB-<span id="pdf-ref-id">2026-001</span></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm">
+                    <div><span class="block text-xs text-slate-400 uppercase font-semibold">Chantier</span><span id="recap-chantier" class="font-bold text-slate-800">-</span></div>
+                    <div><span class="block text-xs text-slate-400 uppercase font-semibold">Client</span><span id="recap-client" class="font-bold text-slate-800">-</span></div>
+                    <div><span class="block text-xs text-slate-400 uppercase font-semibold">Technicien</span><span id="recap-tech" class="font-bold text-slate-800">-</span></div>
+                    <div><span class="block text-xs text-slate-400 uppercase font-semibold">Date</span><span id="recap-date" class="font-bold text-slate-800">-</span></div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-800 text-white text-xs uppercase tracking-wider">
+                                <th class="p-3 rounded-l-lg w-12 text-center">#</th>
+                                <th class="p-3">Point / Élément contrôlé</th>
+                                <th class="p-3 w-48 text-center">Statut / Valeur</th>
+                                <th class="p-3 rounded-r-lg">Remarques / Réserves</th>
+                            </tr>
+                        </thead>
+                        <tbody id="checklist-tbody" class="divide-y divide-slate-100 text-sm"></tbody>
+                    </table>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-slate-200">
+                    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold text-slate-700 uppercase">Signature Technicien</span>
+                            <button onclick="clearSignature('tech')" class="text-xs text-red-600 hover:underline no-print">Effacer</button>
+                        </div>
+                        <div class="bg-white border border-slate-300 rounded-lg h-32 relative overflow-hidden">
+                            <canvas id="canvas-tech" class="w-full h-full cursor-crosshair"></canvas>
+                        </div>
+                    </div>
+                    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold text-slate-700 uppercase">Signature Client / Réception</span>
+                            <button onclick="clearSignature('client')" class="text-xs text-red-600 hover:underline no-print">Effacer</button>
+                        </div>
+                        <div class="bg-white border border-slate-300 rounded-lg h-32 relative overflow-hidden">
+                            <canvas id="canvas-client" class="w-full h-full cursor-crosshair"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-4 no-print">
+                <button onclick="saveFiche()" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-md transition">💾 Enregistrer</button>
+                <button onclick="window.print()" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-md transition">🖨️ Générer / Imprimer PDF</button>
+            </div>
+        </section>
+
+        <!-- ONGLET HISTORIQUE -->
+        <section id="tab-history" class="hidden space-y-6">
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h2 class="text-lg font-bold text-slate-900 mb-4">📂 Historique des fiches</h2>
+                <div id="history-list" class="space-y-3"></div>
+            </div>
+        </section>
+
+        <!-- ONGLET ADMINISTRATION -->
+        <section id="tab-admin" class="hidden space-y-6">
+            <div class="bg-white rounded-xl shadow-md p-6 space-y-6">
+                <div class="flex justify-between items-center border-b border-slate-200 pb-4">
+                    <h2 class="text-lg font-bold text-slate-900">⚙️ Administration des Modèles</h2>
+                    <div class="flex gap-2">
+                        <button onclick="exportTemplatesJSON()" class="px-3 py-1.5 bg-slate-700 text-white text-xs font-bold rounded-lg">Exporter JSON</button>
+                        <button onclick="document.getElementById('import-file').click()" class="px-3 py-1.5 bg-slate-700 text-white text-xs font-bold rounded-lg">Importer JSON</button>
+                        <input type="file" id="import-file" class="hidden" accept=".json" onchange="importTemplatesJSON(event)">
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div><label class="block text-xs font-semibold text-slate-600 mb-1">Nom entreprise</label><input type="text" id="admin-company-name" oninput="updateCompanyInfo()" class="w-full border rounded-lg px-3 py-2 text-sm bg-white"></div>
+                    <div><label class="block text-xs font-semibold text-slate-600 mb-1">SIRET</label><input type="text" id="admin-company-siret" oninput="updateCompanyInfo()" class="w-full border rounded-lg px-3 py-2 text-sm bg-white"></div>
+                    <div><label class="block text-xs font-semibold text-slate-600 mb-1">Logo / Initiales</label><input type="text" id="admin-company-logo" oninput="updateCompanyInfo()" class="w-full border rounded-lg px-3 py-2 text-sm bg-white" value="GT"></div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 text-sm">Modèles de fiches</h3>
+                        <button onclick="addNewTemplate()" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg">+ Créer un modèle</button>
+                    </div>
+                    <div id="admin-templates-container" class="space-y-4"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // Enregistrement du Service Worker pour le mode PWA / Hors-ligne
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
+        }
+
+        let defaultTemplates = [
+            {
+                id: "t1",
+                name: "Mise en service Automates & Réseau BACnet",
+                items: [
+                    { label: "Vérification alimentation 24V et mise à la terre", type: "ok_nok" },
+                    { label: "Adresse IP / Paramétrage réseau BACnet/IP", type: "text", default: "192.168.1." },
+                    { label: "Test de communication Superviseur GTB", type: "ok_nok" }
+                ]
+            }
+        ];
+
+        let templates = JSON.parse(localStorage.getItem('gtb_templates')) || defaultTemplates;
+        let historyFiches = JSON.parse(localStorage.getItem('gtb_history')) || [];
+        document.getElementById('chantier-date').valueAsDate = new Date();
+
+        function switchTab(tabId) {
+            ['fill', 'history', 'admin'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`btn-${t}`).classList.remove('bg-blue-700');
+                document.getElementById(`btn-${t}`).classList.add('bg-blue-800');
+            });
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.getElementById(`btn-${tabId}`).classList.add('bg-blue-700');
+            document.getElementById(`btn-${tabId}`).classList.remove('bg-blue-800');
+
+            if(tabId === 'history') renderHistory();
+            if(tabId === 'admin') renderAdminTemplates();
+        }
+
+        function initTemplateSelector() {
+            const sel = document.getElementById('template-selector');
+            sel.innerHTML = '';
+            templates.forEach(t => {
+                let opt = document.createElement('option');
+                opt.value = t.id; opt.textContent = t.name;
+                sel.appendChild(opt);
+            });
+            loadSelectedTemplate();
+        }
+
+        function loadSelectedTemplate() {
+            const selId = document.getElementById('template-selector').value;
+            const t = templates.find(x => x.id === selId) || templates[0];
+            if(!t) return;
+
+            document.getElementById('pdf-template-title').textContent = "Type : " + t.name;
+            const tbody = document.getElementById('checklist-tbody');
+            tbody.innerHTML = '';
+
+            t.items.forEach((item, idx) => {
+                let tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 border-b border-slate-100";
+                let inputHtml = item.type === 'ok_nok' ? `
+                    <div class="flex gap-1 justify-center">
+                        <label class="px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-xs font-bold cursor-pointer"><input type="radio" name="p_${idx}" value="OK" class="sr-only" checked> OK</label>
+                        <label class="px-2 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded text-xs font-bold cursor-pointer"><input type="radio" name="p_${idx}" value="NOK" class="sr-only"> NOK</label>
+                        <label class="px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded text-xs font-bold cursor-pointer"><input type="radio" name="p_${idx}" value="N/A" class="sr-only"> N/A</label>
+                    </div>` : `<input type="text" class="w-full border rounded px-2 py-1 text-xs" value="${item.default || ''}">`;
+
+                tr.innerHTML = `<td class="p-3 text-center font-bold text-slate-400 text-xs">${idx + 1}</td><td class="p-3 font-medium text-slate-800 text-sm">${item.label}</td><td class="p-3 text-center">${inputHtml}</td><td class="p-3"><input type="text" class="w-full border rounded px-2 py-1 text-xs text-slate-600" placeholder="Remarque..."></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        ['chantier-nom', 'chantier-client', 'chantier-tech', 'chantier-date'].forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                document.getElementById('recap-chantier').textContent = document.getElementById('chantier-nom').value || '-';
+                document.getElementById('recap-client').textContent = document.getElementById('chantier-client').value || '-';
+                document.getElementById('recap-tech').textContent = document.getElementById('chantier-tech').value || '-';
+                document.getElementById('recap-date').textContent = document.getElementById('chantier-date').value || '-';
+            });
+        });
+
+        function setupCanvas(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            let drawing = false;
+            function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
+            window.addEventListener('resize', resize); resize();
+            function getPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                return { x: (e.touches ? e.touches[0].clientX : e.clientX) - rect.left, y: (e.touches ? e.touches[0].clientY : e.clientY) - rect.top };
+            }
+            canvas.addEventListener('mousedown', (e) => { drawing = true; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); });
+            canvas.addEventListener('mousemove', (e) => { if(!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+            window.addEventListener('mouseup', () => { drawing = false; });
+            canvas.addEventListener('touchstart', (e) => { drawing = true; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); e.preventDefault(); });
+            canvas.addEventListener('touchmove', (e) => { if(!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); });
+            canvas.addEventListener('touchend', () => { drawing = false; });
+        }
+        setupCanvas('canvas-tech'); setupCanvas('canvas-client');
+
+        function clearSignature(type) {
+            const canvas = document.getElementById(`canvas-${type}`);
+            canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function saveFiche() {
+            const nom = document.getElementById('chantier-nom').value;
+            if(!nom) { alert("Veuillez indiquer le nom du chantier."); return; }
+            historyFiches.unshift({ id: Date.now(), chantier: nom, tech: document.getElementById('chantier-tech').value, date: document.getElementById('chantier-date').value, template: document.getElementById('pdf-template-title').textContent });
+            localStorage.setItem('gtb_history', JSON.stringify(historyFiches));
+            alert("Fiche enregistrée !");
+            switchTab('history');
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = historyFiches.length === 0 ? `<p class="text-xs text-slate-400">Aucune fiche.</p>` : historyFiches.map(f => `<div class="p-4 bg-slate-50 border rounded-xl text-sm flex justify-between items-center"><div><span class="font-bold">${f.chantier}</span><p class="text-xs text-slate-500">${f.template} - ${f.date}</p></div><button onclick="switchTab('fill')" class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">Reprendre</button></div>`).join('');
+        }
+
+        function renderAdminTemplates() {
+            document.getElementById('admin-templates-container').innerHTML = templates.map((t, idx) => `
+                <div class="border p-4 rounded-xl space-y-3 bg-slate-50">
+                    <div class="flex justify-between items-center">
+                        <input type="text" value="${t.name}" onchange="updateTemplateName('${t.id}', this.value)" class="font-bold text-sm border-b bg-transparent w-2/3">
+                        <button onclick="deleteTemplate('${t.id}')" class="text-xs bg-rose-100 text-rose-700 px-2 py-1 rounded font-bold">Supprimer</button>
+                    </div>
+                    <ul class="space-y-1 pl-4 border-l-2 border-blue-200">${t.items.map((item, i) => `<li class="text-xs flex justify-between items-center"><span class="text-slate-600">${item.label}</span><button onclick="deletePoint('${t.id}', ${i})" class="text-rose-500 font-bold">×</button></li>`).join('')}</ul>
+                </div>`).join('');
+        }
+        function addNewTemplate() { templates.push({ id: 't_' + Date.now(), name: "Nouveau Modèle", items: [{ label: "Point 1", type: "ok_nok" }] }); saveAndReloadTemplates(); }
+        function deleteTemplate(id) { templates = templates.filter(t => t.id !== id); saveAndReloadTemplates(); }
+        function updateTemplateName(id, val) { const t = templates.find(x => x.id === id); if(t) { t.name = val; saveAndReloadTemplates(); } }
+        function deletePoint(id, idx) { const t = templates.find(x => x.id === id); if(t) { t.items.splice(idx, 1); saveAndReloadTemplates(); } }
+        function saveAndReloadTemplates() { localStorage.setItem('gtb_templates', JSON.stringify(templates)); initTemplateSelector(); renderAdminTemplates(); }
+        function updateCompanyInfo() {
+            document.getElementById('pdf-company-name').textContent = document.getElementById('admin-company-name').value || 'GTB SERVICES';
+            document.getElementById('pdf-company-siret').textContent = document.getElementById('admin-company-siret').value || '';
+            document.getElementById('company-logo-container').textContent = document.getElementById('admin-company-logo').value || 'GT';
+        }
+        function exportTemplatesJSON() {
+            const blob = new Blob([JSON.stringify(templates, null, 2)], {type : 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'modeles_gtb.json'; a.click();
+        }
+        function importTemplatesJSON(e) {
+            const reader = new FileReader();
+            reader.onload = (evt) => { templates = JSON.parse(evt.target.result); saveAndReloadTemplates(); alert("Import réussi !"); };
+            reader.readAsText(e.target.files[0]);
+        }
+
+        initTemplateSelector();
+    </script>
+</body>
+</html>
