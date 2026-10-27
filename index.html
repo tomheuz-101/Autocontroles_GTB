@@ -905,37 +905,179 @@ function setupCanvas(canvas) {
 
         function addModalSection() { modalSectionsState.push({ title: 'Nouvelle Rubrique', items: [{ label: 'Point', type: 'status' }] }); renderModalSectionsBuilder(); }
 
-        // --- PDF ENGINE ---
-        async function generatePDF() {
-            const meta = getActiveMeta();
-            const pdfContainer = document.getElementById('pdf-render-area');
-            let total = 0, ok = 0;
-            currentFormState.sections.forEach(sec => sec.items.forEach(item => { total++; if (item.status === 'OK') ok++; }));
+        // --- MOTEUR DE GÉNÉRATION PDF PROFESSIONNEL ---
+async function generatePDF() {
+    const meta = getActiveMeta();
+    const pdfContainer = document.getElementById('pdf-render-area');
 
-            pdfContainer.innerHTML = `
-                <div style="font-family: Arial, sans-serif; color: #1e293b; padding: 20px;">
-                    <h2 style="color: ${companySettings.brandColor};">RAPPORT D'AUTOCONTRÔLE GTB</h2>
-                    <p><strong>Projet :</strong> ${meta.project} | <strong>Client :</strong> ${meta.client}</p>
-                    <p><strong>Technicien :</strong> ${meta.tech} | <strong>Date :</strong> ${meta.date}</p>
-                    <hr/>
-                    ${currentFormState.sections.map(sec => `
-                        <h3>${sec.title}</h3>
-                        <ul>${sec.items.map(i => `<li>${i.label} : <b>${i.status}</b> ${i.comment ? '('+i.comment+')' : ''}</li>`).join('')}</ul>
-                    `).join('')}
-                    <div style="margin-top: 30px; display: flex; justify-content: space-between;">
-                        <div>Visa Technicien:<br><img src="${canvasTech.toDataURL()}" style="max-height:40px;"/></div>
-                        <div>Visa Client:<br><img src="${canvasClient.toDataURL()}" style="max-height:40px;"/></div>
-                    </div>
+    // Calcul des statistiques
+    let total = 0, ok = 0, nok = 0, na = 0;
+    currentFormState.sections.forEach(sec => sec.items.forEach(item => {
+        total++;
+        if (item.status === 'OK') ok++;
+        else if (item.status === 'NOK') nok++;
+        else na++;
+    }));
+    const rate = total > 0 ? Math.round((ok / (total - na || 1)) * 100) : 0;
+
+    const brandColor = companySettings.brandColor || '#0891b2';
+    const logoHtml = companySettings.logo 
+        ? `<img src="${companySettings.logo}" style="max-height: 48px; max-width: 140px; object-fit: contain;">`
+        : `<div style="font-size: 18px; font-weight: 800; color: ${brandColor};">${companySettings.name}</div>`;
+
+    pdfContainer.innerHTML = `
+        <div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; box-sizing: border-box; line-height: 1.4;">
+            
+            <!-- EN-TÊTE -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid ${brandColor}; padding-bottom: 12px; margin-bottom: 16px;">
+                <div>
+                    ${logoHtml}
+                    <div style="font-size: 9px; color: #64748b; margin-top: 4px;">SIRET : ${companySettings.siret || '-'}</div>
                 </div>
-            `;
+                <div style="text-align: right;">
+                    <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Fiche d'Autocontrôle GTB</div>
+                    <div style="font-size: 11px; font-weight: 600; color: ${brandColor};">${currentFormState.title}</div>
+                    <div style="font-size: 10px; color: #64748b;">Édité le : ${new Date().toLocaleDateString('fr-FR')}</div>
+                </div>
+            </div>
 
-            const canvas = await html2canvas(pdfContainer, { scale: 2 });
-            const imgData = canvas.toDataURL('image/png');
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), (canvas.height * pdf.internal.pageSize.getWidth()) / canvas.width);
-            pdf.save(`Autocontrole_${meta.project.replace(/\s+/g, '_')}.pdf`);
-        }
+            <!-- CARTOUCHE AFFAIRE / PROJET -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+                <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 3px 6px; width: 50%;"><strong>Chantier / Projet :</strong> ${meta.project || '-'}</td>
+                        <td style="padding: 3px 6px; width: 50%;"><strong>N° d'Affaire :</strong> ${meta.code || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 3px 6px;"><strong>Client / Localisation :</strong> ${meta.client || '-'}</td>
+                        <td style="padding: 3px 6px;"><strong>Équipement / Repère :</strong> ${meta.lot || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 3px 6px;"><strong>Technicien Référent :</strong> ${meta.tech || '-'}</td>
+                        <td style="padding: 3px 6px;"><strong>Date du Contrôle :</strong> ${meta.date || '-'}</td>
+                    </tr>
+                    ${meta.notes ? `
+                    <tr>
+                        <td colspan="2" style="padding: 6px 6px 0 6px; color: #475569; font-style: italic; border-top: 1px dashed #cbd5e1; margin-top: 4px;">
+                            <strong>Note :</strong> ${meta.notes}
+                        </td>
+                    </tr>` : ''}
+                </table>
+            </div>
+
+            <!-- SYNTHÈSE / KPI -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                <div style="flex: 1; background: #f1f5f9; padding: 8px; border-radius: 6px; text-align: center; border-left: 3px solid #64748b;">
+                    <div style="font-size: 9px; color: #64748b; font-weight: 600; text-transform: uppercase;">Points Contrôlés</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #0f172a;">${total}</div>
+                </div>
+                <div style="flex: 1; background: #ecfdf5; padding: 8px; border-radius: 6px; text-align: center; border-left: 3px solid #10b981;">
+                    <div style="font-size: 9px; color: #047857; font-weight: 600; text-transform: uppercase;">Conformes</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #047857;">${ok}</div>
+                </div>
+                <div style="flex: 1; background: #fef2f2; padding: 8px; border-radius: 6px; text-align: center; border-left: 3px solid #ef4444;">
+                    <div style="font-size: 9px; color: #b91c1c; font-weight: 600; text-transform: uppercase;">Non Conformes</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #b91c1c;">${nok}</div>
+                </div>
+                <div style="flex: 1; background: #eff6ff; padding: 8px; border-radius: 6px; text-align: center; border-left: 3px solid #3b82f6;">
+                    <div style="font-size: 9px; color: #1d4ed8; font-weight: 600; text-transform: uppercase;">Taux Conformité</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #1d4ed8;">${rate}%</div>
+                </div>
+            </div>
+
+            <!-- TABLEAU DES CONTRÔLES PAR RUBRIQUE -->
+            <div style="margin-bottom: 20px;">
+                ${currentFormState.sections.map(sec => `
+                    <div style="margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden;">
+                        <div style="background: #1e293b; color: #ffffff; padding: 6px 10px; font-size: 11px; font-weight: 700;">
+                            ${sec.title}
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                            <thead>
+                                <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #64748b;">
+                                    <th style="padding: 6px 8px; width: 45%;">Point de contrôle</th>
+                                    <th style="padding: 6px 8px; width: 18%;">Valeur / Mesure</th>
+                                    <th style="padding: 6px 8px; width: 15%; text-align: center;">Statut</th>
+                                    <th style="padding: 6px 8px; width: 22%;">Observations</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sec.items.map((item, idx) => {
+                                    let statusBadge = '';
+                                    if (item.status === 'OK') {
+                                        statusBadge = '<span style="background: #d1fae5; color: #065f46; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 9px;">OK</span>';
+                                    } else if (item.status === 'NOK') {
+                                        statusBadge = '<span style="background: #fee2e2; color: #991b1b; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 9px;">NOK</span>';
+                                    } else {
+                                        statusBadge = '<span style="background: #f1f5f9; color: #475569; font-weight: 600; padding: 2px 8px; border-radius: 4px; font-size: 9px;">N/A</span>';
+                                    }
+
+                                    let valDisplay = '-';
+                                    if (item.type === 'numeric' && item.valNumeric) {
+                                        valDisplay = `${item.valNumeric} ${item.unit || ''}`;
+                                    } else if (item.valText) {
+                                        valDisplay = item.valText;
+                                    }
+
+                                    const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+
+                                    return `
+                                    <tr style="background: ${rowBg}; border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 6px 8px; font-weight: 600; color: #1e293b;">${item.label}</td>
+                                        <td style="padding: 6px 8px; color: #475569; font-family: monospace;">${valDisplay}</td>
+                                        <td style="padding: 6px 8px; text-align: center;">${statusBadge}</td>
+                                        <td style="padding: 6px 8px; color: #64748b; font-style: ${item.comment ? 'normal' : 'italic'};">${item.comment || '-'}</td>
+                                    </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `).join('')}
+            </div>
+
+            <!-- SIGNATURES -->
+            <div style="display: flex; justify-content: space-between; gap: 16px; margin-top: 10px;">
+                <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #f8fafc;">
+                    <div style="font-size: 10px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 6px;">
+                        Visa Technicien Référent
+                    </div>
+                    <div style="height: 60px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                        <img src="${canvasTech.toDataURL()}" style="max-height: 55px; max-width: 90%; object-fit: contain;">
+                    </div>
+                    <div style="font-size: 9px; color: #64748b; margin-top: 4px;">Signé par : ${meta.tech}</div>
+                </div>
+
+                <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #f8fafc;">
+                    <div style="font-size: 10px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 6px;">
+                        Visa Client / Responsable Chantier
+                    </div>
+                    <div style="height: 60px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                        <img src="${canvasClient.toDataURL()}" style="max-height: 55px; max-width: 90%; object-fit: contain;">
+                    </div>
+                    <div style="font-size: 9px; color: #64748b; margin-top: 4px;">Représentant Client : ${meta.client}</div>
+                </div>
+            </div>
+
+            <!-- PIED DE PAGE -->
+            <div style="text-align: center; font-size: 8px; color: #94a3b8; margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 6px;">
+                Document généré automatiquement via GTB Control Master • Fiche d'autocontrôle et de réception technique
+            </div>
+        </div>
+    `;
+
+    // Rendu haute fidélité
+    const canvas = await html2canvas(pdfContainer, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`Autocontrole_${(meta.project || 'GTB').replace(/\s+/g, '_')}_${meta.date}.pdf`);
+}
     </script>
 </body>
 </html>
