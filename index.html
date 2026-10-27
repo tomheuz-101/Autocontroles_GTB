@@ -202,6 +202,16 @@
                         <div class="p-3 bg-amber-950/50 rounded-lg text-amber-400"><i class="fa-solid fa-chart-pie text-lg"></i></div>
                     </div>
                 </div>
+				
+				<!-- ZONE D'OBSERVATIONS GÉNÉRALES -->
+				<div class="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-3 shadow-xl">
+					<h3 class="text-md font-bold text-white flex items-center gap-2">
+						<i class="fa-solid fa-comment-dots text-cyan-400"></i> Observations Générales, Réserves & Travaux Restants
+					</h3>
+					<textarea id="meta-observations" rows="3" 
+						placeholder="Indiquez ici vos conclusions d'essais, réserves particulières, actions correctives à mener ou matériel manquant..." 
+						class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none"></textarea>
+				</div>
 
                 <div id="fill-sections-container" class="space-y-6"></div>
 
@@ -879,17 +889,18 @@
         }
 
         // --- CLOUD ARCHIVE & SAVE ---
-        function getActiveMeta() {
-            return {
-                project: document.getElementById('meta-project').value || 'Sans Nom',
-                code: document.getElementById('meta-code').value || '-',
-                client: document.getElementById('meta-client').value || '-',
-                tech: document.getElementById('meta-tech').value || (currentUser ? currentUser.email : ''),
-                date: document.getElementById('meta-date').value || new Date().toISOString().split('T')[0],
-                lot: document.getElementById('meta-lot').value || '-',
-                notes: document.getElementById('meta-notes').value || ''
-            };
-        }
+		function getActiveMeta() {
+			return {
+				project: document.getElementById('meta-project').value || 'Sans Nom',
+				code: document.getElementById('meta-code').value || '-',
+				client: document.getElementById('meta-client').value || '-',
+				tech: document.getElementById('meta-tech').value || (currentUser ? currentUser.email : ''),
+				date: document.getElementById('meta-date').value || new Date().toISOString().split('T')[0],
+				lot: document.getElementById('meta-lot').value || '-',
+				notes: document.getElementById('meta-notes').value || '',
+				observations: document.getElementById('meta-observations')?.value || '' // 👈 Sauvegarde des observations
+			};
+		}
 
         async function saveActiveFormToCloud() {
             const meta = getActiveMeta();
@@ -971,6 +982,8 @@
             document.getElementById('meta-date').value = meta.date || '';
             document.getElementById('meta-lot').value = meta.lot || '';
             document.getElementById('meta-notes').value = meta.notes || '';
+
+			document.getElementById('meta-observations').value = meta.observations || '';
 
             currentFormState.title = data.template_name || 'Autocontrôle';
             currentFormState.sections = data.data.sections || [];
@@ -1272,6 +1285,36 @@ async function generatePDF() {
                         ${secList.map(sec => renderSectionTableHtml(sec)).join('')}
                     </div>
                 </div>
+				
+				    // 4. Bloc Observations Générales & Signatures
+				const generalObsHtml = meta.observations ? `
+					<div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 3px solid ${brandColor}; border-radius: 4px; padding: 6px 10px; margin-top: 8px; margin-bottom: 6px;">
+						<div style="font-size: 9px; font-weight: 700; color: #0f172a; text-transform: uppercase; margin-bottom: 2px;">
+							Observations Générales & Conclusions :
+						</div>
+						<div style="font-size: 8.5px; color: #334155; line-height: 1.35; white-space: pre-wrap;">${meta.observations}</div>
+					</div>
+				` : '';
+
+				const signaturesHtml = `
+					${generalObsHtml}
+					<div style="display: flex; justify-content: space-between; gap: 14px; margin-top: 8px; margin-bottom: 6px;">
+						<div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
+							<div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Technicien Référent</div>
+							<div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+								<img src="${canvasTech.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
+							</div>
+							<div style="font-size: 8px; color: #64748b; margin-top: 3px;">Signé par : ${meta.tech}</div>
+						</div>
+						<div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
+							<div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Responsable Client / Chantier</div>
+							<div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+								<img src="${canvasClient.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
+							</div>
+							<div style="font-size: 8px; color: #64748b; margin-top: 3px;">Représentant : ${meta.client}</div>
+						</div>
+					</div>
+				`;
 
                 <!-- BAS DE PAGE : Signatures sur la dernière page de contrôle -->
                 <div>
