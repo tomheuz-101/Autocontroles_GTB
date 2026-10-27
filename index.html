@@ -13,8 +13,8 @@
     <!-- jsPDF & html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-	<!-- Bibliothèque de fusion PDF -->
-	<script src="https://unpkg.com/pdf-lib@1.17.9/dist/pdf-lib.min.js"></script>
+	<!-- Bibliothèque PDF-LIB via CDNJS (Ultra-fiable) -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.9/pdf-lib.min.js"></script>
     <!-- SDK Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -1290,11 +1290,13 @@ async function generatePDF() {
     let finalPdfBytes = basePdfBytes;
 
     if (pdfDocsToMerge.length > 0) {
-        if (!window.PDFLib) {
-            alert('⚠️ Attention : La bibliothèque PDFLib n\'est pas chargée. Le document principal sera téléchargé sans la fusion des pièces jointes.');
-        } else {
-            const { PDFDocument } = window.PDFLib;
-            const mergedDoc = await PDFDocument.load(basePdfBytes);
+    const pdfLibInstance = window.PDFLib || (typeof PDFLib !== 'undefined' ? PDFLib : null);
+
+    if (!pdfLibInstance) {
+        alert('⚠️ Attention : La bibliothèque PDFLib n\'est pas chargée. Vérifiez votre connexion internet ou le cache du navigateur.');
+    } else {
+        const { PDFDocument } = pdfLibInstance;
+        const mergedDoc = await PDFDocument.load(basePdfBytes);        
 
             for (const pdfDataUri of pdfDocsToMerge) {
                 try {
