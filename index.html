@@ -644,75 +644,75 @@
         }
 
         function renderFillSections() {
-            const container = document.getElementById('fill-sections-container');
-            container.innerHTML = '';
+		const container = document.getElementById('fill-sections-container');
+		container.innerHTML = '';
 
-            currentFormState.sections.forEach((sec, sIdx) => {
-                const secCard = document.createElement('div');
-                secCard.className = 'bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-lg';
+		currentFormState.sections.forEach((sec, sIdx) => {
+			const secCard = document.createElement('div');
+			secCard.className = 'bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-lg';
 
-                let itemsHtml = sec.items.map((item, iIdx) => {
+			let itemsHtml = sec.items.map((item, iIdx) => {
 				const photos = item.photos || [];
 				const photoThumbs = photos.map((p, pIdx) => `
 					<div class="relative inline-block mt-2 mr-2">
-						<img src="${p}" class="w-12 h-12 object-cover rounded-lg border border-slate-600">
-						<button type="button" onclick="removeItemPhoto(${sIdx}, ${iIdx}, ${pIdx})" class="absolute -top-1.5 -right-1.5 bg-rose-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">&times;</button>
+						<img src="${p}" class="w-12 h-12 object-cover rounded-lg border border-slate-600 shadow">
+						<button type="button" onclick="removeItemPhoto(${sIdx}, ${iIdx}, ${pIdx})" class="absolute -top-1.5 -right-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] shadow">&times;</button>
 					</div>
 				`).join('');
 
 				return `
-					<div class="p-4 bg-slate-800/40 border-b border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+					<div class="p-4 bg-slate-800/40 border-b border-slate-700/60 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
 						<div class="flex-1">
 							<p class="text-xs sm:text-sm font-semibold text-slate-100">${item.label}</p>
 							${item.unit ? `<span class="text-[10px] text-cyan-400 font-mono">Unité: ${item.unit}</span>` : ''}
 							<div class="flex flex-wrap items-center">${photoThumbs}</div>
 						</div>
-						<div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+						
+						<div class="flex flex-wrap items-center gap-2">
+							<!-- 1. Sélecteur Statut -->
 							${renderPointInputWidget(item, sIdx, iIdx)}
-							<div class="flex items-center gap-2 w-full sm:w-auto">
-								<input type="text" placeholder="Remarque..." value="${item.comment || ''}"
-									onchange="currentFormState.sections[${sIdx}].items[${iIdx}].comment = this.value"
-									class="w-full sm:w-44 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-								<button type="button" onclick="triggerItemPhoto(${sIdx}, ${iIdx})" title="Ajouter une photo" class="p-2 bg-slate-700 hover:bg-cyan-600 text-slate-200 hover:text-white rounded-lg text-xs transition">
-									<i class="fa-solid fa-camera"></i>
-								</button>
-							</div>
+							
+							<!-- 2. Champ Valeur / Mesure -->
+							<input type="text" placeholder="Mesure (ex: 230V)..." value="${item.valText || item.valNumeric || ''}"
+								onchange="currentFormState.sections[${sIdx}].items[${iIdx}].valText = this.value"
+								class="w-36 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
+
+							<!-- 3. Champ Observation élargi -->
+							<input type="text" placeholder="Observations / remarques..." value="${item.comment || ''}"
+								onchange="currentFormState.sections[${sIdx}].items[${iIdx}].comment = this.value"
+								class="w-56 sm:w-64 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
+							
+							<!-- 4. Bouton Caméra / Photo -->
+							<button type="button" onclick="triggerItemPhoto(${sIdx}, ${iIdx})" title="Prendre / Ajouter une photo" class="p-2 bg-slate-700 hover:bg-cyan-600 text-slate-200 hover:text-white rounded-lg text-xs transition">
+								<i class="fa-solid fa-camera"></i>
+							</button>
 						</div>
 					</div>
 				`;
 			}).join('');
 
-                secCard.innerHTML = `
-                    <div class="bg-slate-900/90 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
-                        <h3 class="font-bold text-slate-200 text-xs sm:text-sm flex items-center gap-2">
-                            <i class="fa-solid fa-folder-tree text-cyan-400"></i> ${sec.title}
-                        </h3>
-                    </div>
-                    <div>${itemsHtml}</div>
-                `;
-                container.appendChild(secCard);
-            });
-            updateScorecard();
-        }
+			secCard.innerHTML = `
+				<div class="bg-slate-900/90 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
+					<h3 class="font-bold text-slate-200 text-xs sm:text-sm flex items-center gap-2">
+						<i class="fa-solid fa-folder-tree text-cyan-400"></i> ${sec.title}
+					</h3>
+				</div>
+				<div>${itemsHtml}</div>
+			`;
+			container.appendChild(secCard);
+		});
+		updateScorecard();
+	}
 
-        function renderPointInputWidget(item, sIdx, iIdx) {
-            if (item.type === 'status') {
-                return `
-                <div class="inline-flex p-1 bg-slate-900 rounded-lg border border-slate-700">
-                    <button type="button" onclick="setPointStatus(${sIdx}, ${iIdx}, 'OK')" class="px-3 py-1 rounded text-xs font-bold transition ${item.status === 'OK' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400'}">OK</button>
-                    <button type="button" onclick="setPointStatus(${sIdx}, ${iIdx}, 'NOK')" class="px-3 py-1 rounded text-xs font-bold transition ${item.status === 'NOK' ? 'bg-rose-600 text-white shadow' : 'text-slate-400'}">NOK</button>
-                    <button type="button" onclick="setPointStatus(${sIdx}, ${iIdx}, 'NA')" class="px-3 py-1 rounded text-xs font-bold transition ${item.status === 'NA' ? 'bg-slate-700 text-slate-200' : 'text-slate-400'}">N/A</button>
-                </div>`;
-            } else if (item.type === 'numeric') {
-                return `
-                <div class="flex items-center gap-2">
-                    <input type="number" step="any" value="${item.valNumeric || ''}" onchange="currentFormState.sections[${sIdx}].items[${iIdx}].valNumeric = this.value" class="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                    <button type="button" onclick="setPointStatus(${sIdx}, ${iIdx}, '${item.status === 'OK' ? 'NOK' : 'OK'}')" class="px-2 py-1 rounded text-xs font-bold ${item.status === 'OK' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'}">${item.status}</button>
-                </div>`;
-            } else {
-                return `<input type="text" value="${item.valText || ''}" onchange="currentFormState.sections[${sIdx}].items[${iIdx}].valText = this.value" class="w-48 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">`;
-            }
-        }
+        // --- SAISIE TERRAIN : STATUT + MESURE + OBSERVATIONS + PHOTOS ---
+		function renderPointInputWidget(item, sIdx, iIdx) {
+			return `
+			<div class="inline-flex p-1 bg-slate-900 rounded-lg border border-slate-700">
+				<button type="button" onclick="setPointStatus(${sIdx}, ${iIdx}, 'OK')" class="px-2.5 py-1 rounded text-xs font-bold transition ${item.status === 'OK' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}">OK</button>
+				<button type="button" onclick="setPointStatus(${sIdx}, ${iIdx}, 'NOK')" class="px-2.5 py-1 rounded text-xs font-bold transition ${item.status === 'NOK' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'}">NOK</button>
+				<button type="button" onclick="setPointStatus(${sIdx}, ${iIdx}, 'NA')" class="px-2.5 py-1 rounded text-xs font-bold transition ${item.status === 'NA' ? 'bg-slate-700 text-slate-200' : 'text-slate-400 hover:text-white'}">N/A</button>
+			</div>`;
+		}
 
         function setPointStatus(sIdx, iIdx, status) {
             currentFormState.sections[sIdx].items[iIdx].status = status;
@@ -1085,9 +1085,10 @@ async function generatePDF() {
                                         if (item.status === 'NOK') statusHtml = '<b style="color: #dc2626;">✕ NOK</b>';
                                         else if (item.status === 'NA') statusHtml = '<span style="color: #64748b;">— N/A</span>';
 
-                                        let valDisplay = '-';
-                                        if (item.type === 'numeric' && item.valNumeric) valDisplay = item.valNumeric + ' ' + (item.unit || '');
-                                        else if (item.valText) valDisplay = item.valText;
+                                        let valDisplay = item.valText || item.valNumeric || '-';
+										if (item.unit && valDisplay !== '-' && !valDisplay.includes(item.unit)) {
+											valDisplay += ' ' + item.unit;
+										}
 
                                         const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
                                         return `
