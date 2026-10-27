@@ -470,8 +470,10 @@
     document.getElementById('auth-screen').classList.add('hidden');
     document.getElementById('app-screen').classList.remove('hidden');
     
-    // 👇 Ajoutez cette ligne pour réinitialiser les dimensions du Canvas maintenant qu'il est visible :
     setTimeout(() => initCanvases(), 50);
+
+    // 👇 Récupération des paramètres partagés (Logo, Couleurs, Nom)
+    await fetchCompanySettingsFromCloud();
 
     await fetchTemplatesFromCloud();
     renderTemplateSelectOptions();
@@ -568,30 +570,69 @@
             }
         }
 
-        // --- STORAGE LOCAL COMPANY SETTINGS ---
-        function initStorage() {
-            const localCfg = localStorage.getItem('gtb_company_cfg');
-            if (localCfg) companySettings = JSON.parse(localCfg);
-        }
+        // --- SYNCHRONISATION CLOUD DES PARAMÈTRES D'ENTREPRISE ---
 
-        function saveCompanySettings() {
-            companySettings.name = document.getElementById('cfg-company-name').value || 'GTB CONTROL';
-            companySettings.logo = document.getElementById('cfg-company-logo').value || '';
-            companySettings.siret = document.getElementById('cfg-company-siret').value || '';
-            companySettings.brandColor = document.getElementById('cfg-brand-color').value || '#0891b2';
-            localStorage.setItem('gtb_company_cfg', JSON.stringify(companySettings));
-            renderCompanySettings();
-            alert('✅ Paramètres locaux enregistrés !');
-        }
+		// 1. Chargement des paramètres depuis Supabase
+		async function fetchCompanySettingsFromCloud() {
+			try {
+				const { data, error } = await _supabase.from('gtb_config').select('*').eq('id', 'global_config').single();
+				if (data) {
+					companySettings = {
+						name: data.name || 'GTB CONTROL MASTER',
+						logo: data.logo || '',
+						siret: data.siret || '',
+						brandColor: data.brand_color || '#0891b2'
+					};
+					// Sauvegarde de secours locale
+					localStorage.setItem('gtb_company_cfg', JSON.stringify(companySettings));
+				} else {
+					// Secours si pas encore en base
+					const localCfg = localStorage.getItem('gtb_company_cfg');
+					if (localCfg) companySettings = JSON.parse(localCfg);
+				}
+			} catch (e) {
+				console.warn('Mode hors-ligne ou erreur config :', e);
+			}
+			renderCompanySettings();
+		}
 
-        function renderCompanySettings() {
-            document.getElementById('cfg-company-name').value = companySettings.name;
-            document.getElementById('cfg-company-logo').value = companySettings.logo;
-            document.getElementById('cfg-company-siret').value = companySettings.siret;
-            document.getElementById('cfg-brand-color').value = companySettings.brandColor;
-            document.getElementById('company-name-display').innerText = companySettings.name;
-        }
+		// 2. Sauvegarde des paramètres dans Supabase Cloud
+		async function saveCompanySettings() {
+			companySettings.name = document.getElementById('cfg-company-name').value || 'GTB CONTROL MASTER';
+			companySettings.logo = document.getElementById('cfg-company-logo').value || '';
+			companySettings.siret = document.getElementById('cfg-company-siret').value || '';
+			companySettings.brandColor = document.getElementById('cfg-brand-color').value || '#0891b2';
 
+			const payload = {
+				id: 'global_config',
+				name: companySettings.name,
+				logo: companySettings.logo,
+				siret: companySettings.siret,
+				brand_color: companySettings.brandColor,
+				updated_at: new Date().toISOString()
+			};
+
+			const { error } = await _supabase.from('gtb_config').upsert([payload]);
+			if (error) {
+				alert('Erreur lors de la sauvegarde Cloud : ' + error.message);
+			} else {
+				localStorage.setItem('gtb_company_cfg', JSON.stringify(companySettings));
+				renderCompanySettings();
+				alert('✅ Charte graphique synchronisée sur tous les appareils ! ☁️');
+			}
+		}
+
+		// 3. Mise à jour de l'affichage dans l'interface
+		function renderCompanySettings() {
+			if (document.getElementById('cfg-company-name')) document.getElementById('cfg-company-name').value = companySettings.name;
+			if (document.getElementById('cfg-company-logo')) document.getElementById('cfg-company-logo').value = companySettings.logo;
+			if (document.getElementById('cfg-company-siret')) document.getElementById('cfg-company-siret').value = companySettings.siret;
+			if (document.getElementById('cfg-brand-color')) document.getElementById('cfg-brand-color').value = companySettings.brandColor;
+			if (document.getElementById('company-name-display')) document.getElementById('company-name-display').innerText = companySettings.name;
+			
+			// Mise à jour de la couleur de thème CSS
+			document.documentElement.style.setProperty('--brand-primary', companySettings.brandColor);
+		}
         function switchTab(tabName) {
             ['fill', 'archive', 'admin'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
