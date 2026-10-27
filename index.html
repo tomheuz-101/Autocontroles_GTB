@@ -1021,7 +1021,8 @@ async function generatePDF() {
                             <tbody>
                                 ${sec.items.map((item, idx) => {
                                     let statusBadge = '';
-									const badgeStyle = 'display: inline-block; width: 46px; text-align: center; font-weight: 700; font-size: 9px; line-height: 16px; border-radius: 4px; margin: 0 auto;';
+									// 👇 Style avec centrage flexbox absolu pour html2canvas
+									const badgeStyle = 'display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 18px; line-height: 1; font-weight: 700; font-size: 9px; border-radius: 4px; box-sizing: border-box;';
 
 									if (item.status === 'OK') {
 										statusBadge = `<span style="${badgeStyle} background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0;">OK</span>`;
