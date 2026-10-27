@@ -1159,27 +1159,36 @@ async function generatePDF() {
         </div>
     `;
 
-    // 5. Répartition intelligente des rubriques par page A4
-    // Page 1 peut contenir environ 8 à 10 items avec le cartouche et les signatures
+       // 5. Calcul précis de hauteur pour maximiser le remplissage des pages A4
+    // Hauteur A4 utilisable = ~980px
+    const PAGE1_MAX_HEIGHT = 740;     // Espace pour les rubriques sur Page 1 (après En-tête + Cartouche + KPI)
+    const OTHER_PAGE_MAX = 850;       // Espace pour les rubriques sur les pages suivantes
+    const SIGNATURES_HEIGHT = 110;    // Encombrement du bloc signatures
+
     let pagesContent = [];
     let currentPageSections = [];
-    let currentItemCount = 0;
-    const maxItemsPage1 = 8;
-    const maxItemsOtherPages = 16;
+    let currentAccumulatedHeight = 0;
+
+    // Hauteur estimée d'une rubrique : ~42px (bandeau + entête tableau) + ~21px par ligne
+    function getSectionHeight(sec) {
+        return 42 + (sec.items.length * 21);
+    }
 
     currentFormState.sections.forEach(sec => {
-        const secItemCount = sec.items.length;
-        const limit = pagesContent.length === 0 ? maxItemsPage1 : maxItemsOtherPages;
+        const secHeight = getSectionHeight(sec);
+        const isFirstPage = pagesContent.length === 0;
+        const currentLimit = isFirstPage ? PAGE1_MAX_HEIGHT : OTHER_PAGE_MAX;
 
-        if (currentItemCount + secItemCount > limit && currentPageSections.length > 0) {
+        if (currentAccumulatedHeight + secHeight > currentLimit && currentPageSections.length > 0) {
             pagesContent.push(currentPageSections);
             currentPageSections = [sec];
-            currentItemCount = secItemCount;
+            currentAccumulatedHeight = secHeight;
         } else {
             currentPageSections.push(sec);
-            currentItemCount += secItemCount;
+            currentAccumulatedHeight += secHeight;
         }
     });
+
     if (currentPageSections.length > 0) {
         pagesContent.push(currentPageSections);
     }
