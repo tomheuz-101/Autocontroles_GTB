@@ -610,7 +610,7 @@
 				const { data, error } = await _supabase.from('gtb_config').select('*').eq('id', 'global_config').single();
 				if (data) {
 					companySettings = {
-						name: data.name || 'GTB CONTROL MASTER',
+						name: data.name || 'EIFFAGE ENERGIE SYSTEMES',
 						logo: data.logo || '',
 						siret: data.siret || '',
 						brandColor: data.brand_color || '#0891b2'
@@ -630,7 +630,7 @@
 
 		// 2. Sauvegarde des paramètres dans Supabase Cloud
 		async function saveCompanySettings() {
-			companySettings.name = document.getElementById('cfg-company-name').value || 'GTB CONTROL MASTER';
+			companySettings.name = document.getElementById('cfg-company-name').value || 'EIFFAGE ENERGIE SYSTEMES';
 			companySettings.logo = document.getElementById('cfg-company-logo').value || '';
 			companySettings.siret = document.getElementById('cfg-company-siret').value || '';
 			companySettings.brandColor = document.getElementById('cfg-brand-color').value || '#0891b2';
@@ -1260,7 +1260,7 @@ async function generatePDF() {
                 </div>
 
                 <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
-                    GTB Control Master • Document de réception technique • Page 1
+                    EIFFAGE ENERGIE SYSTEMES - Fiches d'autocontrôles • Document de réception technique • Page 1
                 </div>
             </div>
         </div>
