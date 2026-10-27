@@ -1021,13 +1021,15 @@ async function generatePDF() {
                             <tbody>
                                 ${sec.items.map((item, idx) => {
                                     let statusBadge = '';
-                                    if (item.status === 'OK') {
-                                        statusBadge = '<span style="background: #d1fae5; color: #065f46; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 9px;">OK</span>';
-                                    } else if (item.status === 'NOK') {
-                                        statusBadge = '<span style="background: #fee2e2; color: #991b1b; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 9px;">NOK</span>';
-                                    } else {
-                                        statusBadge = '<span style="background: #f1f5f9; color: #475569; font-weight: 600; padding: 2px 8px; border-radius: 4px; font-size: 9px;">N/A</span>';
-                                    }
+									const badgeStyle = 'display: inline-block; width: 46px; text-align: center; font-weight: 700; font-size: 9px; line-height: 16px; border-radius: 4px; margin: 0 auto;';
+
+									if (item.status === 'OK') {
+										statusBadge = `<span style="${badgeStyle} background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0;">OK</span>`;
+									} else if (item.status === 'NOK') {
+										statusBadge = `<span style="${badgeStyle} background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">NOK</span>`;
+									} else {
+										statusBadge = `<span style="${badgeStyle} background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;">N/A</span>`;
+									}
 
                                     let valDisplay = '-';
                                     if (item.type === 'numeric' && item.valNumeric) {
@@ -1042,7 +1044,9 @@ async function generatePDF() {
                                     <tr style="background: ${rowBg}; border-bottom: 1px solid #f1f5f9;">
                                         <td style="padding: 6px 8px; font-weight: 600; color: #1e293b;">${item.label}</td>
                                         <td style="padding: 6px 8px; color: #475569; font-family: monospace;">${valDisplay}</td>
-                                        <td style="padding: 6px 8px; text-align: center;">${statusBadge}</td>
+                                        <td style="padding: 6px 8px; text-align: center; vertical-align: middle;">
+											${statusBadge}
+										</td>
                                         <td style="padding: 6px 8px; color: #64748b; font-style: ${item.comment ? 'normal' : 'italic'};">${item.comment || '-'}</td>
                                     </tr>
                                     `;
