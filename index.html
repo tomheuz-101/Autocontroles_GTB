@@ -13,6 +13,8 @@
     <!-- jsPDF & html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+	<!-- Bibliothèque de fusion et manipulation PDF -->
+	<script src="https://unpkg.com/pdf-lib@1.17.9/dist/pdf-lib.min.js"></script>
     <!-- SDK Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -418,47 +420,77 @@
             document.getElementById('app-screen').classList.add('hidden');
         }
 
-		// --- GESTION DES PHOTOS TERRAIN ---
-		function triggerItemPhoto(sIdx, iIdx) {
+		// --- GESTION DES PIÈCES JOINTES (IMAGES & FICHIERS PDF) ---
+		function triggerItemAttachment(sIdx, iIdx) {
 			const input = document.createElement('input');
 			input.type = 'file';
-			input.accept = 'image/*';
-			input.capture = 'environment'; // Ouvre directement la caméra arrière sur smartphone
+			input.accept = 'image/*,application/pdf'; // Accepte photos et documents PDF
 
 			input.onchange = (e) => {
 				const file = e.target.files[0];
 				if (!file) return;
 
+				const isPdf = file.type === 'application/pdf' || file.name.endsWith('.pdf');
 				const reader = new FileReader();
-				reader.onload = (event) => {
-					const img = new Image();
-					img.onload = () => {
-						// Compression de l'image (max 800px de large pour optimiser le poids)
-						const canvas = document.createElement('canvas');
-						const maxDim = 800;
-						let w = img.width, h = img.height;
-						if (w > maxDim || h > maxDim) {
-							if (w > h) { h = (h * maxDim) / w; w = maxDim; }
-							else { w = (w * maxDim) / h; h = maxDim; }
-						}
-						canvas.width = w; canvas.height = h;
-						const ctx = canvas.getContext('2d');
-						ctx.drawImage(img, 0, 0, w, h);
-						
-						const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7); // Qualité 70%
 
-						// Stockage dans l'état de l'item
-						if (!currentFormState.sections[sIdx].items[iIdx].photos) {
-							currentFormState.sections[sIdx].items[iIdx].photos = [];
+				if (isPdf) {
+					// Lecture du fichier PDF en base64
+					reader.onload = (event) => {
+						if (!currentFormState.sections[sIdx].items[iIdx].attachments) {
+							currentFormState.sections[sIdx].items[iIdx].attachments = [];
 						}
-						currentFormState.sections[sIdx].items[iIdx].photos.push(compressedBase64);
+						currentFormState.sections[sIdx].items[iIdx].attachments.push({
+							type: 'pdf',
+							name: file.name,
+							data: event.target.result
+						});
 						renderFillSections();
 					};
-					img.src = event.target.result;
-				};
-				reader.readAsDataURL(file);
+					reader.readAsDataURL(file);
+				} else {
+					// Traitement et compression d'une Image
+					reader.onload = (event) => {
+						const img = new Image();
+						img.onload = () => {
+							const canvas = document.createElement('canvas');
+							const maxDim = 800;
+							let w = img.width, h = img.height;
+							if (w > maxDim || h > maxDim) {
+								if (w > h) { h = (h * maxDim) / w; w = maxDim; }
+								else { w = (w * maxDim) / h; h = maxDim; }
+							}
+							canvas.width = w; canvas.height = h;
+							const ctx = canvas.getContext('2d');
+							ctx.drawImage(img, 0, 0, w, h);
+
+							const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+							if (!currentFormState.sections[sIdx].items[iIdx].attachments) {
+								currentFormState.sections[sIdx].items[iIdx].attachments = [];
+							}
+							currentFormState.sections[sIdx].items[iIdx].attachments.push({
+								type: 'image',
+								name: file.name,
+								data: compressedBase64
+							});
+							renderFillSections();
+						};
+						img.src = event.target.result;
+					};
+					reader.readAsDataURL(file);
+				}
 			};
 			input.click();
+		}
+
+		function removeAttachment(sIdx, iIdx, attIdx) {
+			currentFormState.sections[sIdx].items[iIdx].attachments.splice(attIdx, 1);
+			renderFillSections();
+		}
+
+		function openAttachmentPreview(dataUrl) {
+			const win = window.open();
+			win.document.write(`<iframe src="${dataUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
 		}
 
 		function removeItemPhoto(sIdx, iIdx, photoIdx) {
@@ -693,44 +725,53 @@
 			secCard.className = 'bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-lg';
 
 			let itemsHtml = sec.items.map((item, iIdx) => {
-				const photos = item.photos || [];
-				const photoThumbs = photos.map((p, pIdx) => `
-					<div class="relative inline-block mt-2 mr-2">
-						<img src="${p}" class="w-12 h-12 object-cover rounded-lg border border-slate-600 shadow">
-						<button type="button" onclick="removeItemPhoto(${sIdx}, ${iIdx}, ${pIdx})" class="absolute -top-1.5 -right-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] shadow">&times;</button>
-					</div>
-				`).join('');
-
-				return `
-					<div class="p-4 bg-slate-800/40 border-b border-slate-700/60 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-						<div class="flex-1">
-							<p class="text-xs sm:text-sm font-semibold text-slate-100">${item.label}</p>
-							${item.unit ? `<span class="text-[10px] text-cyan-400 font-mono">Unité: ${item.unit}</span>` : ''}
-							<div class="flex flex-wrap items-center">${photoThumbs}</div>
+			const attachments = item.attachments || [];
+			const attThumbs = attachments.map((att, aIdx) => {
+				if (att.type === 'pdf') {
+					return `
+						<div class="relative inline-flex items-center gap-1.5 mt-2 mr-2 bg-rose-950/80 border border-rose-700/60 text-rose-200 px-2.5 py-1 rounded-lg text-[11px] shadow cursor-pointer hover:bg-rose-900 transition" onclick="openAttachmentPreview('${att.data}')" title="Cliquer pour voir le PDF">
+							<i class="fa-solid fa-file-pdf text-rose-400 text-sm"></i>
+							<span class="max-w-[100px] truncate font-medium">${att.name || 'Document.pdf'}</span>
+							<button type="button" onclick="event.stopPropagation(); removeAttachment(${sIdx}, ${iIdx}, ${aIdx})" class="ml-1 text-rose-400 hover:text-white font-bold">&times;</button>
 						</div>
-						
-						<div class="flex flex-wrap items-center gap-2">
-							<!-- 1. Sélecteur Statut -->
-							${renderPointInputWidget(item, sIdx, iIdx)}
-							
-							<!-- 2. Champ Valeur / Mesure -->
-							<input type="text" placeholder="Mesure (ex: 230V)..." value="${item.valText || item.valNumeric || ''}"
-								onchange="currentFormState.sections[${sIdx}].items[${iIdx}].valText = this.value"
-								class="w-36 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
-
-							<!-- 3. Champ Observation élargi -->
-							<input type="text" placeholder="Observations / remarques..." value="${item.comment || ''}"
-								onchange="currentFormState.sections[${sIdx}].items[${iIdx}].comment = this.value"
-								class="w-56 sm:w-64 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
-							
-							<!-- 4. Bouton Caméra / Photo -->
-							<button type="button" onclick="triggerItemPhoto(${sIdx}, ${iIdx})" title="Prendre / Ajouter une photo" class="p-2 bg-slate-700 hover:bg-cyan-600 text-slate-200 hover:text-white rounded-lg text-xs transition">
-								<i class="fa-solid fa-camera"></i>
-							</button>
+					`;
+				} else {
+					return `
+						<div class="relative inline-block mt-2 mr-2">
+							<img src="${att.data}" class="w-12 h-12 object-cover rounded-lg border border-slate-600 shadow cursor-pointer" onclick="openAttachmentPreview('${att.data}')">
+							<button type="button" onclick="removeAttachment(${sIdx}, ${iIdx}, ${aIdx})" class="absolute -top-1.5 -right-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] shadow">&times;</button>
 						</div>
-					</div>
-				`;
+					`;
+				}
 			}).join('');
+
+			return `
+				<div class="p-4 bg-slate-800/40 border-b border-slate-700/60 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+					<div class="flex-1">
+						<p class="text-xs sm:text-sm font-semibold text-slate-100">${item.label}</p>
+						${item.unit ? `<span class="text-[10px] text-cyan-400 font-mono">Unité: ${item.unit}</span>` : ''}
+						<div class="flex flex-wrap items-center mt-1">${attThumbs}</div>
+					</div>
+					
+					<div class="flex flex-wrap items-center gap-2">
+						${renderPointInputWidget(item, sIdx, iIdx)}
+						
+						<input type="text" placeholder="Mesure (ex: 230V)..." value="${item.valText || item.valNumeric || ''}"
+							onchange="currentFormState.sections[${sIdx}].items[${iIdx}].valText = this.value"
+							class="w-36 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+
+						<input type="text" placeholder="Observations / remarques..." value="${item.comment || ''}"
+							onchange="currentFormState.sections[${sIdx}].items[${iIdx}].comment = this.value"
+							class="w-56 sm:w-64 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+						
+						<!-- Bouton Pièce Jointe (Photo ou PDF) -->
+						<button type="button" onclick="triggerItemAttachment(${sIdx}, ${iIdx})" title="Ajouter une photo ou un schéma PDF" class="p-2 bg-slate-700 hover:bg-cyan-600 text-slate-200 hover:text-white rounded-lg text-xs transition flex items-center gap-1">
+							<i class="fa-solid fa-paperclip"></i>
+						</button>
+					</div>
+				</div>
+			`;
+		}).join('');
 
 			secCard.innerHTML = `
 				<div class="bg-slate-900/90 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
@@ -1010,7 +1051,7 @@ function setupCanvas(canvas) {
 
         function addModalSection() { modalSectionsState.push({ title: 'Nouvelle Rubrique', items: [{ label: 'Point', type: 'status' }] }); renderModalSectionsBuilder(); }
 
-        // --- MOTEUR DE GÉNÉRATION PDF MULTI-PAGES (PAGE 1 : PV / PAGE 2 : ANNEXES) ---
+// --- MOTEUR DE GÉNÉRATION PDF MULTI-PAGES AVEC FUSION DE DOCUMENTS ---
 async function generatePDF() {
     const meta = getActiveMeta();
     const pdfContainer = document.getElementById('pdf-render-area');
@@ -1030,13 +1071,19 @@ async function generatePDF() {
         ? '<img src="' + companySettings.logo + '" style="max-height: 40px; max-width: 140px; object-fit: contain; margin-bottom: 4px;">' 
         : '';
 
-    // 2. Récupération des photos prises
+    // 2. Récupération des photos et des PDF joints
     let photosList = [];
+    let pdfDocsToMerge = [];
+
     currentFormState.sections.forEach(sec => {
         sec.items.forEach(item => {
-            if (item.photos && item.photos.length > 0) {
-                item.photos.forEach(photo => {
-                    photosList.push({ label: item.label, section: sec.title, photo: photo });
+            if (item.attachments && item.attachments.length > 0) {
+                item.attachments.forEach(att => {
+                    if (att.type === 'image') {
+                        photosList.push({ label: item.label, section: sec.title, photo: att.data });
+                    } else if (att.type === 'pdf') {
+                        pdfDocsToMerge.push(att.data);
+                    }
                 });
             }
         });
@@ -1127,9 +1174,9 @@ async function generatePDF() {
                                         else if (item.status === 'NA') statusHtml = '<span style="color: #64748b;">— N/A</span>';
 
                                         let valDisplay = item.valText || item.valNumeric || '-';
-										if (item.unit && valDisplay !== '-' && !valDisplay.includes(item.unit)) {
-											valDisplay += ' ' + item.unit;
-										}
+                                        if (item.unit && valDisplay !== '-' && !valDisplay.includes(item.unit)) {
+                                            valDisplay += ' ' + item.unit;
+                                        }
 
                                         const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
                                         return `
@@ -1167,7 +1214,7 @@ async function generatePDF() {
                 </div>
 
                 <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
-                    EIFFAGE - Gestion des autocontrôles • Document de réception technique • Page 1 / ${photosList.length > 0 ? '2' : '1'}
+                    GTB Control Master • Document de réception technique • Page 1
                 </div>
             </div>
         </div>
@@ -1210,13 +1257,13 @@ async function generatePDF() {
 
                 <!-- PIED DE PAGE 2 -->
                 <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
-                    EIFFAGE - Gestion des autocontrôles • Annexe Photographique • Page 2 / 2
+                    GTB Control Master • Annexe Photographique
                 </div>
             </div>
         `;
     }
 
-    // 5. Injection et Capture PDF Multi-pages
+    // 5. Injection et Capture PDF
     pdfContainer.innerHTML = page1Html + page2Html;
 
     const { jsPDF } = window.jspdf;
@@ -1238,8 +1285,32 @@ async function generatePDF() {
         pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, pdfHeight2);
     }
 
-    // Téléchargement
-    pdf.save(`Autocontrole_${(meta.project || 'GTB').replace(/\s+/g, '_')}_${meta.date}.pdf`);
+    // 📄 FUSION INTELLIGENTE AVEC LES SCHÉMAS / NOTICES PDF JOINTS
+    const basePdfBytes = pdf.output('arraybuffer');
+    let finalPdfBytes = basePdfBytes;
+
+    if (pdfDocsToMerge.length > 0 && window.PDFLib) {
+        const { PDFDocument } = window.PDFLib;
+        const mergedDoc = await PDFDocument.load(basePdfBytes);
+
+        for (const pdfDataUri of pdfDocsToMerge) {
+            try {
+                const donorDoc = await PDFDocument.load(pdfDataUri);
+                const donorPages = await mergedDoc.copyPages(donorDoc, donorDoc.getPageIndices());
+                donorPages.forEach(page => mergedDoc.addPage(page));
+            } catch (err) {
+                console.warn('Erreur lors de la fusion d\'un document PDF :', err);
+            }
+        }
+        finalPdfBytes = await mergedDoc.save();
+    }
+
+    // Téléchargement du fichier final unifié
+    const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Autocontrole_${(meta.project || 'GTB').replace(/\s+/g, '_')}_${meta.date}.pdf`;
+    link.click();
 }
     </script>
 </body>
