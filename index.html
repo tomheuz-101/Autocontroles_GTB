@@ -1019,18 +1019,22 @@ async function generatePDF() {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${sec.items.map((item, idx) => {
-                                    let statusBadge = '';
-									// 👇 Style avec centrage flexbox absolu pour html2canvas
-									const badgeStyle = 'display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 18px; line-height: 1; font-weight: 700; font-size: 9px; border-radius: 4px; box-sizing: border-box;';
+                                ${sec.items.map((item, idx) => {                                    
+									// --- GÉNÉRATION DU BADGE VIA MICRO-TABLEAU (COMPATIBLE HTML2CANVAS À 100%) ---
+									let bg = '#d1fae5', col = '#065f46', bdr = '#a7f3d0', txt = 'OK';
 
-									if (item.status === 'OK') {
-										statusBadge = `<span style="${badgeStyle} background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0;">OK</span>`;
-									} else if (item.status === 'NOK') {
-										statusBadge = `<span style="${badgeStyle} background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">NOK</span>`;
-									} else {
-										statusBadge = `<span style="${badgeStyle} background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;">N/A</span>`;
+									if (item.status === 'NOK') {
+										bg = '#fee2e2'; col = '#991b1b'; bdr = '#fecaca'; txt = 'NOK';
+									} else if (item.status === 'NA') {
+										bg = '#f1f5f9'; col = '#475569'; bdr = '#cbd5e1'; txt = 'N/A';
 									}
+
+									const statusBadge = `
+									<table align="center" style="width: 42px; height: 18px; margin: 0 auto; border-collapse: separate; background-color: ${bg}; border: 1px solid ${bdr}; border-radius: 4px;">
+										<tr>
+											<td align="center" valign="middle" style="text-align: center; vertical-align: middle; padding: 0; margin: 0; font-size: 9px; font-weight: bold; color: ${col}; font-family: 'Segoe UI', Arial, sans-serif;">${txt}</td>
+										</tr>
+									</table>`;
 
                                     let valDisplay = '-';
                                     if (item.type === 'numeric' && item.valNumeric) {
