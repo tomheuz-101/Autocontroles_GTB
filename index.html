@@ -13,7 +13,7 @@
     <!-- jsPDF & html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-	<!-- Bibliothèque de fusion et manipulation PDF -->
+	<!-- Bibliothèque de fusion PDF -->
 	<script src="https://unpkg.com/pdf-lib@1.17.9/dist/pdf-lib.min.js"></script>
     <!-- SDK Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1285,24 +1285,37 @@ async function generatePDF() {
         pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, pdfHeight2);
     }
 
-    // 📄 FUSION INTELLIGENTE AVEC LES SCHÉMAS / NOTICES PDF JOINTS
+   // 📄 FUSION DES SCHÉMAS ET NOTICES PDF JOINTS
     const basePdfBytes = pdf.output('arraybuffer');
     let finalPdfBytes = basePdfBytes;
 
-    if (pdfDocsToMerge.length > 0 && window.PDFLib) {
-        const { PDFDocument } = window.PDFLib;
-        const mergedDoc = await PDFDocument.load(basePdfBytes);
+    if (pdfDocsToMerge.length > 0) {
+        if (!window.PDFLib) {
+            alert('⚠️ Attention : La bibliothèque PDFLib n\'est pas chargée. Le document principal sera téléchargé sans la fusion des pièces jointes.');
+        } else {
+            const { PDFDocument } = window.PDFLib;
+            const mergedDoc = await PDFDocument.load(basePdfBytes);
 
-        for (const pdfDataUri of pdfDocsToMerge) {
-            try {
-                const donorDoc = await PDFDocument.load(pdfDataUri);
-                const donorPages = await mergedDoc.copyPages(donorDoc, donorDoc.getPageIndices());
-                donorPages.forEach(page => mergedDoc.addPage(page));
-            } catch (err) {
-                console.warn('Erreur lors de la fusion d\'un document PDF :', err);
+            for (const pdfDataUri of pdfDocsToMerge) {
+                try {
+                    // Conversion de la chaîne Base64 en tableau binaire Uint8Array
+                    const base64Data = pdfDataUri.includes(',') ? pdfDataUri.split(',')[1] : pdfDataUri;
+                    const binaryString = atob(base64Data);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+
+                    // Chargement et copie des pages du document joint
+                    const donorDoc = await PDFDocument.load(bytes);
+                    const donorPages = await mergedDoc.copyPages(donorDoc, donorDoc.getPageIndices());
+                    donorPages.forEach(page => mergedDoc.addPage(page));
+                } catch (err) {
+                    console.error('Erreur lors de l\'intégration d\'un PDF joint :', err);
+                }
             }
+            finalPdfBytes = await mergedDoc.save();
         }
-        finalPdfBytes = await mergedDoc.save();
     }
 
     // Téléchargement du fichier final unifié
