@@ -1308,36 +1308,46 @@
                 </div>
             `;
 
-            // 5. Calcul précis de hauteur pour maximiser le remplissage des pages A4
-            const PAGE1_MAX_HEIGHT = 740;
-            const OTHER_PAGE_MAX = 850;
+                // 5. Calcul précis tenant compte des observations multi-lignes et des signatures
+				const PAGE1_MAX_HEIGHT = 560;     // Hauteur max sécurisée pour Page 1 (avec Cartouche + KPI)
+				const OTHER_PAGE_MAX = 680;       // Hauteur max sécurisée pour Page 2+ (avec signatures)
 
-            let pagesContent = [];
-            let currentPageSections = [];
-            let currentAccumulatedHeight = 0;
+				let pagesContent = [];
+				let currentPageSections = [];
+				let currentAccumulatedHeight = 0;
 
-            function getSectionHeight(sec) {
-                return 42 + (sec.items.length * 21);
-            }
+				// Calcul dynamique de la hauteur d'une rubrique selon la longueur des textes
+				function getSectionHeight(sec) {
+					let h = 45; // Hauteur du bandeau de titre + en-tête de colonnes
+					sec.items.forEach(item => {
+						const commentLen = (item.comment || '').length;
+						const labelLen = (item.label || '').length;
+						// Calcule le nombre de lignes réelles si le texte s'enroule
+						const lines = Math.max(Math.ceil(commentLen / 30), Math.ceil(labelLen / 40), 1);
+						h += 16 + (lines * 14); // 16px de base + 14px par ligne de texte supplémentaire
+					});
+					return h;
+				}
 
-            currentFormState.sections.forEach(sec => {
-                const secHeight = getSectionHeight(sec);
-                const isFirstPage = pagesContent.length === 0;
-                const currentLimit = isFirstPage ? PAGE1_MAX_HEIGHT : OTHER_PAGE_MAX;
+				currentFormState.sections.forEach(sec => {
+					const secHeight = getSectionHeight(sec);
+					const isFirstPage = pagesContent.length === 0;
+					const currentLimit = isFirstPage ? PAGE1_MAX_HEIGHT : OTHER_PAGE_MAX;
 
-                if (currentAccumulatedHeight + secHeight > currentLimit && currentPageSections.length > 0) {
-                    pagesContent.push(currentPageSections);
-                    currentPageSections = [sec];
-                    currentAccumulatedHeight = secHeight;
-                } else {
-                    currentPageSections.push(sec);
-                    currentAccumulatedHeight += secHeight;
-                }
-            });
+					// Si la rubrique ne rentre pas complètement, on la bascule proprement sur la page suivante
+					if (currentAccumulatedHeight + secHeight > currentLimit && currentPageSections.length > 0) {
+						pagesContent.push(currentPageSections);
+						currentPageSections = [sec];
+						currentAccumulatedHeight = secHeight;
+					} else {
+						currentPageSections.push(sec);
+						currentAccumulatedHeight += secHeight;
+					}
+				});
 
-            if (currentPageSections.length > 0) {
-                pagesContent.push(currentPageSections);
-            }
+				if (currentPageSections.length > 0) {
+					pagesContent.push(currentPageSections);
+				}
 
             // 6. Construction des conteneurs HTML de chaque page A4
             let fullHtml = '';
