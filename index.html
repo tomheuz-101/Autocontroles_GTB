@@ -13,8 +13,8 @@
     <!-- jsPDF & html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-	<!-- Bibliothèque PDF-LIB via CDNJS (Ultra-fiable) -->
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.9/pdf-lib.min.js"></script>
+	<!-- Bibliothèque officielle PDF-LIB -->
+	<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.9/dist/pdf-lib.min.js"></script>
     <!-- SDK Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -1285,22 +1285,33 @@ async function generatePDF() {
         pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, pdfHeight2);
     }
 
-   // 📄 FUSION DES SCHÉMAS ET NOTICES PDF JOINTS
+    // 📄 FUSION INTELLIGENTE DES PDF AVEC CHARGEMENT AUTOMATIQUE DE SECOURS
     const basePdfBytes = pdf.output('arraybuffer');
     let finalPdfBytes = basePdfBytes;
 
     if (pdfDocsToMerge.length > 0) {
-    const pdfLibInstance = window.PDFLib || (typeof PDFLib !== 'undefined' ? PDFLib : null);
+        // 1. Si PDFLib n'est pas encore chargé, on le télécharge automatiquement
+        if (!window.PDFLib) {
+            try {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.9/dist/pdf-lib.min.js';
+                    script.onload = () => resolve();
+                    script.onerror = () => reject();
+                    document.head.appendChild(script);
+                });
+            } catch (e) {
+                console.error('Impossible de charger PDFLib :', e);
+            }
+        }
 
-    if (!pdfLibInstance) {
-        alert('⚠️ Attention : La bibliothèque PDFLib n\'est pas chargée. Vérifiez votre connexion internet ou le cache du navigateur.');
-    } else {
-        const { PDFDocument } = pdfLibInstance;
-        const mergedDoc = await PDFDocument.load(basePdfBytes);        
+        // 2. Fusion des documents PDF joints
+        if (window.PDFLib) {
+            const { PDFDocument } = window.PDFLib;
+            const mergedDoc = await PDFDocument.load(basePdfBytes);
 
             for (const pdfDataUri of pdfDocsToMerge) {
                 try {
-                    // Conversion de la chaîne Base64 en tableau binaire Uint8Array
                     const base64Data = pdfDataUri.includes(',') ? pdfDataUri.split(',')[1] : pdfDataUri;
                     const binaryString = atob(base64Data);
                     const bytes = new Uint8Array(binaryString.length);
@@ -1308,15 +1319,16 @@ async function generatePDF() {
                         bytes[i] = binaryString.charCodeAt(i);
                     }
 
-                    // Chargement et copie des pages du document joint
                     const donorDoc = await PDFDocument.load(bytes);
                     const donorPages = await mergedDoc.copyPages(donorDoc, donorDoc.getPageIndices());
                     donorPages.forEach(page => mergedDoc.addPage(page));
                 } catch (err) {
-                    console.error('Erreur lors de l\'intégration d\'un PDF joint :', err);
+                    console.error('Erreur lors de la fusion d\'un document PDF :', err);
                 }
             }
             finalPdfBytes = await mergedDoc.save();
+        } else {
+            alert('⚠️ Note : Le document a été généré, mais la fusion du schéma joint a échoué (connexion bloquée vers le CDN).');
         }
     }
 
