@@ -940,46 +940,92 @@ function setupCanvas(canvas) {
                 alert('✅ Fiche synchronisée dans Supabase Cloud avec succès ! ☁️');
             }
         }
+		
+		// --- SUPPRESSION D'UNE FICHE DU CLOUD ---
+		async function deleteCloudFiche(fId) {
+			if (confirm('⚠️ Êtes-vous sûr de vouloir supprimer définitivement cette fiche de contrôle du Cloud ?')) {
+				const { error } = await _supabase.from('gtb_fiches').delete().eq('id', fId);
+				if (error) {
+					alert('Erreur lors de la suppression : ' + error.message);
+				} else {
+					alert('✅ Fiche supprimée avec succès !');
+					await fetchCloudHistory(); // Rafraîchit le tableau
+				}
+			}
+		}
 
         async function fetchCloudHistory() {
-            const tbody = document.getElementById('archive-table-body');
-            const { data, error } = await _supabase.from('gtb_fiches').select('*').order('created_at', { ascending: false });
-            
-            if (!data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-500">Aucune fiche enregistrée dans le Cloud.</td></tr>`;
-                return;
-            }
+			const tbody = document.getElementById('archive-table-body');
+			const { data, error } = await _supabase.from('gtb_fiches').select('*').order('created_at', { ascending: false });
+			
+			if (!data || data.length === 0) {
+				tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-500">Aucune fiche enregistrée dans le Cloud.</td></tr>`;
+				return;
+			}
 
-            tbody.innerHTML = data.map(f => `
-                <tr class="hover:bg-slate-800/50">
-                    <td class="p-3 font-bold text-white">${f.chantier}<div class="text-[10px] text-slate-400 font-normal">${f.client}</div></td>
-                    <td class="p-3 text-slate-200">${f.template_name}</td>
-                    <td class="p-3 text-slate-300">${f.tech}</td>
-                    <td class="p-3 text-slate-400 font-mono text-xs">${f.date}</td>
-                    <td class="p-3 text-right">
-                        <button onclick="loadArchiveToForm(${f.id})" title="Charger" class="p-1 text-slate-300 hover:text-cyan-400"><i class="fa-solid fa-arrow-right-to-bracket"></i></button>
-                    </td>
-                </tr>
-            `).join('');
-        }
+			tbody.innerHTML = data.map(f => {
+				const codeAffaire = f.data?.meta?.code ? `<span class="text-cyan-400 font-mono text-[10px]"> [${f.data.meta.code}]</span>` : '';
+				return `
+					<tr class="hover:bg-slate-800/50 transition">
+						<td class="p-3 font-bold text-white">
+							${f.chantier}${codeAffaire}
+							<div class="text-[10px] text-slate-400 font-normal">${f.client}</div>
+						</td>
+						<td class="p-3 text-slate-200">${f.template_name}</td>
+						<td class="p-3 text-slate-300">${f.tech}</td>
+						<td class="p-3 text-slate-400 font-mono text-xs">${f.date}</td>
+						<td class="p-3 text-right">
+							<div class="inline-flex items-center space-x-1">
+								<!-- Bouton Ouvrir / Charger -->
+								<button onclick="loadArchiveToForm(${f.id})" title="Ouvrir la fiche" class="p-2 text-slate-300 hover:text-cyan-400 transition">
+									<i class="fa-solid fa-arrow-right-to-bracket text-sm"></i>
+								</button>
+								<!-- Bouton Supprimer -->
+								<button onclick="deleteCloudFiche(${f.id})" title="Supprimer la fiche du Cloud" class="p-2 text-slate-400 hover:text-rose-400 transition">
+									<i class="fa-solid fa-trash-can text-sm"></i>
+								</button>
+							</div>
+						</td>
+					</tr>
+				`;
+			}).join('');
+		}
 
         async function loadArchiveToForm(fId) {
-            const { data } = await _supabase.from('gtb_fiches').select('*').eq('id', fId).single();
-            if (!data) return;
+		const { data, error } = await _supabase.from('gtb_fiches').select('*').eq('id', fId).single();
+		if (!data || !data.data) return;
 
-            document.getElementById('meta-project').value = data.data.meta.project;
-            document.getElementById('meta-client').value = data.data.meta.client;
-            document.getElementById('meta-tech').value = data.data.meta.tech;
-            document.getElementById('meta-date').value = data.data.meta.date;
-            document.getElementById('meta-lot').value = data.data.meta.lot;
-            document.getElementById('meta-notes').value = data.data.meta.notes || '';
+		const meta = data.data.meta || {};
 
-            currentFormState.title = data.template_name;
-            currentFormState.sections = data.data.sections;
+		// 1. Réinjection de tous les champs du cartouche
+		document.getElementById('meta-project').value = meta.project || '';
+		document.getElementById('meta-code').value = meta.code || ''; // 👈 Le N° d'Affaire est maintenant bien restauré !
+		document.getElementById('meta-client').value = meta.client || '';
+		document.getElementById('meta-tech').value = meta.tech || '';
+		document.getElementById('meta-date').value = meta.date || '';
+		document.getElementById('meta-lot').value = meta.lot || '';
+		document.getElementById('meta-notes').value = meta.notes || '';
 
-            switchTab('fill');
-            renderFillSections();
-        }
+		// 2. Restauration de l'état du formulaire
+		currentFormState.title = data.template_name || 'Autocontrôle';
+		currentFormState.sections = data.data.sections || [];
+
+		// 3. Restauration visuelle des signatures si existantes
+		if (data.data.sigTech && canvasTech) {
+			const imgTech = new Image();
+			imgTech.onload = () => ctxTech.drawImage(imgTech, 0, 0);
+			imgTech.src = data.data.sigTech;
+		}
+		if (data.data.sigClient && canvasClient) {
+			const imgClient = new Image();
+			imgClient.onload = () => ctxClient.drawImage(imgClient, 0, 0);
+			imgClient.src = data.data.sigClient;
+		}
+
+		// 4. Affichage de la vue de saisie
+		switchTab('fill');
+		renderFillSections();
+	}
 
         // --- ADMIN TEMPLATE BUILDER ---
         let modalSectionsState = [];
@@ -1098,7 +1144,7 @@ async function generatePDF() {
                     <div>
                         ${logoImgTag}
                         <div style="font-size: 14px; font-weight: 800; color: ${brandColor}; text-transform: uppercase;">${companySettings.name}</div>
-                        <div style="font-size: 9px; color: #64748b; margin-top: 2px;">SIRET : ${companySettings.siret || '-'}</div>
+                       <!-- <div style="font-size: 9px; color: #64748b; margin-top: 2px;">SIRET : ${companySettings.siret || '-'}</div>-->
                     </div>
                     <div style="text-align: right;">
                         <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase;">Fiche d'Autocontrôle GTB</div>
