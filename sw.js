@@ -2,6 +2,7 @@ const CACHE_NAME = 'gtb-cache-v1';
 const assetsToCache = [
   '/',
   '/index.html',
+  './pdf-lib.min.js',
   'https://cdn.tailwindcss.com'
 ];
 
