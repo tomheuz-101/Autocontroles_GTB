@@ -618,6 +618,55 @@
             }
             renderCompanySettings();
         }
+		
+		// --- FUSION INTELLIGENTE (MODÈLE À JOUR + DONNÉES SAISIES CONSERVÉES) ---
+		function mergeTemplateWithSavedData(templateSections, savedSections) {
+			if (!savedSections || savedSections.length === 0) return templateSections;
+
+			// Création d'un dictionnaire des réponses déjà renseignées (clé = titre rubrique + libellé point)
+			const savedMap = new Map();
+			savedSections.forEach(sec => {
+				(sec.items || []).forEach(item => {
+					const key = (sec.title + ':::' + item.label).toLowerCase().trim();
+					savedMap.set(key, item);
+				});
+			});
+
+			// On reconstruit la structure à partir du NOUVEAU modèle en réinjectant les saisies existantes
+			return templateSections.map(sec => ({
+				title: sec.title,
+				items: (sec.items || []).map(item => {
+					const key = (sec.title + ':::' + item.label).toLowerCase().trim();
+					const existing = savedMap.get(key);
+
+					if (existing) {
+						// Point existant : on conserve toutes les données saisies
+						return {
+							label: item.label,
+							type: item.type || 'status',
+							unit: item.unit || '',
+							status: existing.status || 'OK',
+							valNumeric: existing.valNumeric || '',
+							valSetpoint: existing.valSetpoint || '',
+							valMeasured: existing.valMeasured || '',
+							valText: existing.valText || '',
+							comment: existing.comment || '',
+							attachments: existing.attachments || existing.photos?.map(p => ({ type: 'image', data: p, name: 'photo.jpg' })) || []
+						};
+					} else {
+						// Nouveau point ajouté au modèle : initialisé prêt à être contrôlé
+						return {
+							label: item.label,
+							type: item.type || 'status',
+							unit: item.unit || '',
+							status: 'OK',
+							valNumeric: '', valSetpoint: '', valMeasured: '', valText: '', comment: '',
+							attachments: []
+						};
+					}
+				})
+			}));
+		}
 
         async function saveCompanySettings() {
             companySettings.name = document.getElementById('cfg-company-name').value || 'EIFFAGE ENERGIE SYSTEMES';
@@ -986,7 +1035,15 @@
             }
 
             currentFormState.title = data.template_name || 'Autocontrôle';
-            currentFormState.sections = data.data.sections || [];
+            const currentTpl = templates.find(t => t.title === data.template_name || t.name === data.template_name);
+
+			if (currentTpl && currentTpl.sections) {
+				// Fusionne avec le modèle officiel le plus récent
+				currentFormState.sections = mergeTemplateWithSavedData(currentTpl.sections, data.data.sections);
+			} else {
+				// Secours si le modèle d'origine a été supprimé
+				currentFormState.sections = data.data.sections || [];
+			}
 
             if (data.data.sigTech && canvasTech) {
                 const imgTech = new Image();
@@ -1004,6 +1061,29 @@
         }
 
         // --- ADMIN TEMPLATE BUILDER ---
+		
+		// --- DÉPLACEMENT ET RÉORGANISATION DES RUBRIQUES & POINTS ---
+		function moveSection(index, direction) {
+			const targetIndex = index + direction;
+			if (targetIndex < 0 || targetIndex >= modalSectionsState.length) return;
+			
+			const temp = modalSectionsState[index];
+			modalSectionsState[index] = modalSectionsState[targetIndex];
+			modalSectionsState[targetIndex] = temp;
+			renderModalSectionsBuilder();
+		}
+
+		function moveItem(sIdx, iIdx, direction) {
+			const items = modalSectionsState[sIdx].items;
+			const targetIndex = iIdx + direction;
+			if (targetIndex < 0 || targetIndex >= items.length) return;
+
+			const temp = items[iIdx];
+			items[iIdx] = items[targetIndex];
+			items[targetIndex] = temp;
+			renderModalSectionsBuilder();
+		}
+
         let modalSectionsState = [];
 
         function renderAdminTemplatesGrid() {
@@ -1051,25 +1131,70 @@
         function closeTemplateModal() { document.getElementById('template-modal').classList.add('hidden'); }
 
         function renderModalSectionsBuilder() {
-            const container = document.getElementById('modal-sections-builder');
-            container.innerHTML = modalSectionsState.map((sec, sIdx) => `
-                <div class="bg-slate-900 border border-slate-700 rounded-lg p-4 space-y-3">
-                    <div class="flex items-center justify-between gap-2">
-                        <input type="text" value="${sec.title}" onchange="modalSectionsState[${sIdx}].title = this.value" class="font-bold bg-slate-800 border border-slate-600 rounded px-2.5 py-1 text-xs text-white flex-1">
-                        <button onclick="modalSectionsState.splice(${sIdx},1); renderModalSectionsBuilder();" class="text-rose-400 text-xs p-1"><i class="fa-solid fa-trash"></i></button>
-                    </div>
-                    <div class="space-y-2 pl-3 border-l-2 border-slate-700">
-                        ${sec.items.map((item, iIdx) => `
-                            <div class="flex items-center gap-2">
-                                <input type="text" value="${item.label}" onchange="modalSectionsState[${sIdx}].items[${iIdx}].label = this.value" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 flex-1">
-                                <button onclick="modalSectionsState[${sIdx}].items.splice(${iIdx},1); renderModalSectionsBuilder();" class="text-slate-500 hover:text-rose-400"><i class="fa-solid fa-xmark"></i></button>
-                            </div>
-                        `).join('')}
-                        <button onclick="modalSectionsState[${sIdx}].items.push({label:'Nouveau point', type:'status'}); renderModalSectionsBuilder();" class="text-xs text-cyan-400 font-semibold">+ Ajouter un point</button>
-                    </div>
-                </div>
-            `).join('');
-        }
+		const container = document.getElementById('modal-sections-builder');
+		container.innerHTML = modalSectionsState.map((sec, sIdx) => {
+			const isFirstSec = sIdx === 0;
+			const isLastSec = sIdx === modalSectionsState.length - 1;
+
+			return `
+				<div class="bg-slate-900 border border-slate-700 rounded-lg p-4 space-y-3 shadow-md">
+					<!-- En-tête de la Rubrique avec flèches de tri -->
+					<div class="flex items-center justify-between gap-2">
+						<span class="text-xs font-bold text-cyan-400 bg-slate-800 px-2 py-1 rounded">#${sIdx + 1}</span>
+						<input type="text" value="${sec.title}" 
+							onchange="modalSectionsState[${sIdx}].title = this.value" 
+							class="font-bold bg-slate-800 border border-slate-600 rounded px-2.5 py-1 text-xs text-white flex-1 focus:ring-1 focus:ring-cyan-500 outline-none">
+						
+						<div class="inline-flex items-center space-x-1">
+							<!-- Monter la rubrique -->
+							<button type="button" onclick="moveSection(${sIdx}, -1)" ${isFirstSec ? 'disabled class="text-slate-600 p-1 cursor-not-allowed"' : 'class="text-slate-300 hover:text-cyan-400 p-1"'} title="Monter la rubrique">
+								<i class="fa-solid fa-arrow-up text-xs"></i>
+							</button>
+							<!-- Descendre la rubrique -->
+							<button type="button" onclick="moveSection(${sIdx}, 1)" ${isLastSec ? 'disabled class="text-slate-600 p-1 cursor-not-allowed"' : 'class="text-slate-300 hover:text-cyan-400 p-1"'} title="Descendre la rubrique">
+								<i class="fa-solid fa-arrow-down text-xs"></i>
+							</button>
+							<!-- Supprimer la rubrique -->
+							<button type="button" onclick="modalSectionsState.splice(${sIdx}, 1); renderModalSectionsBuilder();" class="text-rose-400 hover:text-rose-300 text-xs p-1 ml-1" title="Supprimer la rubrique">
+								<i class="fa-solid fa-trash"></i>
+							</button>
+						</div>
+					</div>
+
+					<!-- Liste des Points de contrôle avec flèches de tri -->
+					<div class="space-y-2 pl-3 border-l-2 border-slate-700">
+						${sec.items.map((item, iIdx) => {
+							const isFirstItem = iIdx === 0;
+							const isLastItem = iIdx === sec.items.length - 1;
+
+							return `
+								<div class="flex items-center gap-2">
+									<input type="text" value="${item.label}" 
+										onchange="modalSectionsState[${sIdx}].items[${iIdx}].label = this.value" 
+										class="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 flex-1 focus:ring-1 focus:ring-cyan-500 outline-none">
+									
+									<div class="inline-flex items-center space-x-1">
+										<button type="button" onclick="moveItem(${sIdx}, ${iIdx}, -1)" ${isFirstItem ? 'disabled class="text-slate-600 p-1"' : 'class="text-slate-400 hover:text-cyan-400 p-1"'} title="Monter ce point">
+											<i class="fa-solid fa-chevron-up text-[10px]"></i>
+										</button>
+										<button type="button" onclick="moveItem(${sIdx}, ${iIdx}, 1)" ${isLastItem ? 'disabled class="text-slate-600 p-1"' : 'class="text-slate-400 hover:text-cyan-400 p-1"'} title="Descendre ce point">
+											<i class="fa-solid fa-chevron-down text-[10px]"></i>
+										</button>
+										<button type="button" onclick="modalSectionsState[${sIdx}].items.splice(${iIdx}, 1); renderModalSectionsBuilder();" class="text-slate-500 hover:text-rose-400 p-1" title="Supprimer ce point">
+											<i class="fa-solid fa-xmark"></i>
+										</button>
+									</div>
+								</div>
+							`;
+						}).join('')}
+						<button type="button" onclick="modalSectionsState[${sIdx}].items.push({label:'Nouveau point', type:'status'}); renderModalSectionsBuilder();" class="text-xs text-cyan-400 hover:text-cyan-300 font-semibold pt-1 flex items-center gap-1">
+							<i class="fa-solid fa-plus text-[10px]"></i> Ajouter un point
+						</button>
+					</div>
+				</div>
+			`;
+		}).join('');
+	}
 
         function addModalSection() { modalSectionsState.push({ title: 'Nouvelle Rubrique', items: [{ label: 'Point', type: 'status' }] }); renderModalSectionsBuilder(); }
 
