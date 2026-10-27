@@ -202,16 +202,16 @@
                         <div class="p-3 bg-amber-950/50 rounded-lg text-amber-400"><i class="fa-solid fa-chart-pie text-lg"></i></div>
                     </div>
                 </div>
-				
-				<!-- ZONE D'OBSERVATIONS GÉNÉRALES -->
-				<div class="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-3 shadow-xl">
-					<h3 class="text-md font-bold text-white flex items-center gap-2">
-						<i class="fa-solid fa-comment-dots text-cyan-400"></i> Observations Générales, Réserves & Travaux Restants
-					</h3>
-					<textarea id="meta-observations" rows="3" 
-						placeholder="Indiquez ici vos conclusions d'essais, réserves particulières, actions correctives à mener ou matériel manquant..." 
-						class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none"></textarea>
-				</div>
+                
+                <!-- ZONE D'OBSERVATIONS GÉNÉRALES -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-3 shadow-xl">
+                    <h3 class="text-md font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-comment-dots text-cyan-400"></i> Observations Générales, Réserves & Travaux Restants
+                    </h3>
+                    <textarea id="meta-observations" rows="3" 
+                        placeholder="Indiquez ici vos conclusions d'essais, réserves particulières, actions correctives à mener ou matériel manquant..." 
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none"></textarea>
+                </div>
 
                 <div id="fill-sections-container" class="space-y-6"></div>
 
@@ -473,7 +473,6 @@
         // --- GESTION DES PIÈCES JOINTES (IMAGES & FICHIERS PDF) ---
         function triggerItemAttachment(sIdx, iIdx) {
             const input = document.createElement('input');
-			
             input.type = 'file';
             input.accept = 'image/*,application/pdf';
 
@@ -889,18 +888,18 @@
         }
 
         // --- CLOUD ARCHIVE & SAVE ---
-		function getActiveMeta() {
-			return {
-				project: document.getElementById('meta-project').value || 'Sans Nom',
-				code: document.getElementById('meta-code').value || '-',
-				client: document.getElementById('meta-client').value || '-',
-				tech: document.getElementById('meta-tech').value || (currentUser ? currentUser.email : ''),
-				date: document.getElementById('meta-date').value || new Date().toISOString().split('T')[0],
-				lot: document.getElementById('meta-lot').value || '-',
-				notes: document.getElementById('meta-notes').value || '',
-				observations: document.getElementById('meta-observations')?.value || '' // 👈 Sauvegarde des observations
-			};
-		}
+        function getActiveMeta() {
+            return {
+                project: document.getElementById('meta-project').value || 'Sans Nom',
+                code: document.getElementById('meta-code').value || '-',
+                client: document.getElementById('meta-client').value || '-',
+                tech: document.getElementById('meta-tech').value || (currentUser ? currentUser.email : ''),
+                date: document.getElementById('meta-date').value || new Date().toISOString().split('T')[0],
+                lot: document.getElementById('meta-lot').value || '-',
+                notes: document.getElementById('meta-notes').value || '',
+                observations: document.getElementById('meta-observations')?.value || ''
+            };
+        }
 
         async function saveActiveFormToCloud() {
             const meta = getActiveMeta();
@@ -982,8 +981,9 @@
             document.getElementById('meta-date').value = meta.date || '';
             document.getElementById('meta-lot').value = meta.lot || '';
             document.getElementById('meta-notes').value = meta.notes || '';
-
-			document.getElementById('meta-observations').value = meta.observations || '';
+            if (document.getElementById('meta-observations')) {
+                document.getElementById('meta-observations').value = meta.observations || '';
+            }
 
             currentFormState.title = data.template_name || 'Autocontrôle';
             currentFormState.sections = data.data.sections || [];
@@ -1073,373 +1073,348 @@
 
         function addModalSection() { modalSectionsState.push({ title: 'Nouvelle Rubrique', items: [{ label: 'Point', type: 'status' }] }); renderModalSectionsBuilder(); }
 
-  // --- MOTEUR DE GÉNÉRATION PDF INTELLIGENT SANS COUPURE ---
-async function generatePDF() {
-    const meta = getActiveMeta();
-    const pdfContainer = document.getElementById('pdf-render-area');
+        // --- MOTEUR DE GÉNÉRATION PDF INTELLIGENT SANS COUPURE ---
+        async function generatePDF() {
+            const meta = getActiveMeta();
+            const pdfContainer = document.getElementById('pdf-render-area');
 
-    // 1. Calcul des statistiques
-    let total = 0, ok = 0, nok = 0, na = 0;
-    currentFormState.sections.forEach(sec => sec.items.forEach(item => {
-        total++;
-        if (item.status === 'OK') ok++;
-        else if (item.status === 'NOK') nok++;
-        else na++;
-    }));
-    const rate = total > 0 ? Math.round((ok / (total - na || 1)) * 100) : 0;
+            // 1. Calcul des statistiques
+            let total = 0, ok = 0, nok = 0, na = 0;
+            currentFormState.sections.forEach(sec => sec.items.forEach(item => {
+                total++;
+                if (item.status === 'OK') ok++;
+                else if (item.status === 'NOK') nok++;
+                else na++;
+            }));
+            const rate = total > 0 ? Math.round((ok / (total - na || 1)) * 100) : 0;
 
-    const brandColor = companySettings.brandColor || '#0891b2';
-    const logoImgTag = companySettings.logo 
-        ? '<img src="' + companySettings.logo + '" style="max-height: 40px; max-width: 140px; object-fit: contain; margin-bottom: 4px;">' 
-        : '';
+            const brandColor = companySettings.brandColor || '#0891b2';
+            const logoImgTag = companySettings.logo 
+                ? '<img src="' + companySettings.logo + '" style="max-height: 40px; max-width: 140px; object-fit: contain; margin-bottom: 4px;">' 
+                : '';
 
-    // 2. Pièces jointes (Photos & PDF)
-    let photosList = [];
-    let pdfDocsToMerge = [];
+            // 2. Pièces jointes (Photos & PDF)
+            let photosList = [];
+            let pdfDocsToMerge = [];
 
-    currentFormState.sections.forEach(sec => {
-        sec.items.forEach(item => {
-            if (item.attachments && item.attachments.length > 0) {
-                item.attachments.forEach(att => {
-                    if (att.type === 'image') {
-                        photosList.push({ label: item.label, section: sec.title, photo: att.data });
-                    } else if (att.type === 'pdf') {
-                        pdfDocsToMerge.push(att.data);
+            currentFormState.sections.forEach(sec => {
+                sec.items.forEach(item => {
+                    if (item.attachments && item.attachments.length > 0) {
+                        item.attachments.forEach(att => {
+                            if (att.type === 'image') {
+                                photosList.push({ label: item.label, section: sec.title, photo: att.data });
+                            } else if (att.type === 'pdf') {
+                                pdfDocsToMerge.push(att.data);
+                            }
+                        });
                     }
                 });
-            }
-        });
-    });
+            });
 
-    // 3. Fonction pour générer le tableau HTML d'une rubrique
-    function renderSectionTableHtml(sec) {
-        return `
-            <div style="margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; background: #ffffff;">
-                <div style="background: #1e293b; color: #ffffff; padding: 5px 8px; font-size: 10px; font-weight: 700;">
-                    ${sec.title}
-                </div>
-                <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
-                    <thead>
-                        <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #64748b;">
-                            <th style="padding: 4px 6px; width: 45%;">Point de contrôle</th>
-                            <th style="padding: 4px 6px; width: 20%;">Valeur / Mesure</th>
-                            <th style="padding: 4px 6px; width: 15%; text-align: center;">Statut</th>
-                            <th style="padding: 4px 6px; width: 20%;">Observations</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${sec.items.map((item, idx) => {
-                            let statusHtml = '<b style="color: #047857;">✓ OK</b>';
-                            if (item.status === 'NOK') statusHtml = '<b style="color: #dc2626;">✕ NOK</b>';
-                            else if (item.status === 'NA') statusHtml = '<span style="color: #64748b;">— N/A</span>';
-
-                            let valDisplay = item.valText || item.valNumeric || '-';
-                            if (item.unit && valDisplay !== '-' && !valDisplay.includes(item.unit)) {
-                                valDisplay += ' ' + item.unit;
-                            }
-
-                            const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
-                            return `
-                            <tr style="background: ${rowBg}; border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 4px 6px; font-weight: 600; color: #1e293b;">${item.label}</td>
-                                <td style="padding: 4px 6px; color: #475569; font-family: monospace;">${valDisplay}</td>
-                                <td style="padding: 4px 6px; text-align: center;">${statusHtml}</td>
-                                <td style="padding: 4px 6px; color: #64748b;">${item.comment || '-'}</td>
-                            </tr>`;
-                        }).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    // 4. Bloc Signatures
-    const signaturesHtml = `
-        <div style="display: flex; justify-content: space-between; gap: 14px; margin-top: 14px; margin-bottom: 8px;">
-            <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
-                <div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Technicien Référent</div>
-                <div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
-                    <img src="${canvasTech.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
-                </div>
-                <div style="font-size: 8px; color: #64748b; margin-top: 3px;">Signé par : ${meta.tech}</div>
-            </div>
-            <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
-                <div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Responsable Client / Chantier</div>
-                <div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
-                    <img src="${canvasClient.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
-                </div>
-                <div style="font-size: 8px; color: #64748b; margin-top: 3px;">Représentant : ${meta.client}</div>
-            </div>
-        </div>
-    `;
-
-       // 5. Calcul précis de hauteur pour maximiser le remplissage des pages A4
-    // Hauteur A4 utilisable = ~980px
-    const PAGE1_MAX_HEIGHT = 740;     // Espace pour les rubriques sur Page 1 (après En-tête + Cartouche + KPI)
-    const OTHER_PAGE_MAX = 850;       // Espace pour les rubriques sur les pages suivantes
-    const SIGNATURES_HEIGHT = 110;    // Encombrement du bloc signatures
-
-    let pagesContent = [];
-    let currentPageSections = [];
-    let currentAccumulatedHeight = 0;
-
-    // Hauteur estimée d'une rubrique : ~42px (bandeau + entête tableau) + ~21px par ligne
-    function getSectionHeight(sec) {
-        return 42 + (sec.items.length * 21);
-    }
-
-    currentFormState.sections.forEach(sec => {
-        const secHeight = getSectionHeight(sec);
-        const isFirstPage = pagesContent.length === 0;
-        const currentLimit = isFirstPage ? PAGE1_MAX_HEIGHT : OTHER_PAGE_MAX;
-
-        if (currentAccumulatedHeight + secHeight > currentLimit && currentPageSections.length > 0) {
-            pagesContent.push(currentPageSections);
-            currentPageSections = [sec];
-            currentAccumulatedHeight = secHeight;
-        } else {
-            currentPageSections.push(sec);
-            currentAccumulatedHeight += secHeight;
-        }
-    });
-
-    if (currentPageSections.length > 0) {
-        pagesContent.push(currentPageSections);
-    }
-
-    // 6. Construction des conteneurs HTML de chaque page A4
-    let fullHtml = '';
-
-    pagesContent.forEach((secList, pIndex) => {
-        const isFirstPage = pIndex === 0;
-        const isLastInspectionPage = pIndex === pagesContent.length - 1;
-
-        fullHtml += `
-            <div id="pdf-page-block-${pIndex}" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; min-height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 20px;">
-                <div>
-                    <!-- EN-TÊTE -->
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid ${brandColor}; padding-bottom: 12px; margin-bottom: 14px;">
-                        <div>
-                            ${logoImgTag}
-                            <div style="font-size: 14px; font-weight: 800; color: ${brandColor}; text-transform: uppercase;">${companySettings.name}</div>
+            // 3. Fonction pour générer le tableau HTML d'une rubrique (compact)
+            function renderSectionTableHtml(sec) {
+                return `
+                    <div style="margin-bottom: 8px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; background: #ffffff;">
+                        <div style="background: #1e293b; color: #ffffff; padding: 4px 8px; font-size: 10px; font-weight: 700;">
+                            ${sec.title}
                         </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase;">Fiche d'Autocontrôles GTB</div>
-                            <div style="font-size: 11px; font-weight: 600; color: ${brandColor}; margin-top: 2px;">${currentFormState.title} ${pagesContent.length > 1 ? `(Page ${pIndex + 1}/${pagesContent.length})` : ''}</div>
-                            <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Date : ${new Date().toLocaleDateString('fr-FR')}</div>
-                        </div>
-                    </div>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
+                            <thead>
+                                <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #64748b;">
+                                    <th style="padding: 3px 6px; width: 45%;">Point de contrôle</th>
+                                    <th style="padding: 3px 6px; width: 20%;">Valeur / Mesure</th>
+                                    <th style="padding: 3px 6px; width: 15%; text-align: center;">Statut</th>
+                                    <th style="padding: 3px 6px; width: 20%;">Observations</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sec.items.map((item, idx) => {
+                                    let statusHtml = '<b style="color: #047857;">✓ OK</b>';
+                                    if (item.status === 'NOK') statusHtml = '<b style="color: #dc2626;">✕ NOK</b>';
+                                    else if (item.status === 'NA') statusHtml = '<span style="color: #64748b;">— N/A</span>';
 
-                    ${isFirstPage ? `
-                    <!-- CARTOUCHE CHANTIER (Page 1 uniquement) -->
-                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 14px;">
-                        <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
-                            <tr>
-                                <td style="padding: 2px 4px; width: 50%;"><strong>Chantier / Projet :</strong> ${meta.project || '-'}</td>
-                                <td style="padding: 2px 4px; width: 50%;"><strong>N° d'Affaire :</strong> ${meta.code || '-'}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 2px 4px;"><strong>Client / Site :</strong> ${meta.client || '-'}</td>
-                                <td style="padding: 2px 4px;"><strong>Équipement / Repère :</strong> ${meta.lot || '-'}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 2px 4px;"><strong>Technicien Référent :</strong> ${meta.tech || '-'}</td>
-                                <td style="padding: 2px 4px;"><strong>Date du Contrôle :</strong> ${meta.date || '-'}</td>
-                            </tr>
-                            ${meta.notes ? `
-                            <tr>
-                                <td colspan="2" style="padding: 4px 4px 0 4px; color: #475569; font-style: italic; border-top: 1px dashed #cbd5e1; margin-top: 2px;">
-                                    <strong>Remarque :</strong> ${meta.notes}
-                                </td>
-                            </tr>` : ''}
+                                    let valDisplay = item.valText || item.valNumeric || '-';
+                                    if (item.unit && valDisplay !== '-' && !valDisplay.includes(item.unit)) {
+                                        valDisplay += ' ' + item.unit;
+                                    }
+
+                                    const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+                                    return `
+                                    <tr style="background: ${rowBg}; border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 3px 6px; font-weight: 600; color: #1e293b;">${item.label}</td>
+                                        <td style="padding: 3px 6px; color: #475569; font-family: monospace;">${valDisplay}</td>
+                                        <td style="padding: 3px 6px; text-align: center;">${statusHtml}</td>
+                                        <td style="padding: 3px 6px; color: #64748b;">${item.comment || '-'}</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
                         </table>
                     </div>
+                `;
+            }
 
-                    <!-- SYNTHÈSE STATS (Page 1 uniquement) -->
-                    <div style="display: flex; gap: 8px; margin-bottom: 14px;">
-                        <div style="flex: 1; background: #f1f5f9; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #64748b;">
-                            <div style="font-size: 8px; color: #64748b; font-weight: 600; text-transform: uppercase;">Points Totaux</div>
-                            <div style="font-size: 14px; font-weight: 700; color: #0f172a;">${total}</div>
-                        </div>
-                        <div style="flex: 1; background: #ecfdf5; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #10b981;">
-                            <div style="font-size: 8px; color: #047857; font-weight: 600; text-transform: uppercase;">Conformes</div>
-                            <div style="font-size: 14px; font-weight: 700; color: #047857;">${ok}</div>
-                        </div>
-                        <div style="flex: 1; background: #fef2f2; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #ef4444;">
-                            <div style="font-size: 8px; color: #b91c1c; font-weight: 600; text-transform: uppercase;">Non Conformes</div>
-                            <div style="font-size: 14px; font-weight: 700; color: #b91c1c;">${nok}</div>
-                        </div>
-                        <div style="flex: 1; background: #eff6ff; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #3b82f6;">
-                            <div style="font-size: 8px; color: #1d4ed8; font-weight: 600; text-transform: uppercase;">Conformité</div>
-                            <div style="font-size: 14px; font-weight: 700; color: #1d4ed8;">${rate}%</div>
-                        </div>
+            // 4. Bloc Observations Générales & Signatures
+            const generalObsHtml = meta.observations ? `
+                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 3px solid ${brandColor}; border-radius: 4px; padding: 6px 10px; margin-top: 8px; margin-bottom: 6px;">
+                    <div style="font-size: 9px; font-weight: 700; color: #0f172a; text-transform: uppercase; margin-bottom: 2px;">
+                        Observations Générales & Conclusions :
                     </div>
-                    ` : `
-                    <div style="background: #f1f5f9; border-left: 3px solid ${brandColor}; padding: 6px 10px; font-size: 10px; font-weight: 600; color: #334155; margin-bottom: 12px;">
-                        Suite des contrôles • Projet : <strong>${meta.project}</strong> | Repère : <strong>${meta.lot}</strong>
-                    </div>
-                    `}
+                    <div style="font-size: 8.5px; color: #334155; line-height: 1.35; white-space: pre-wrap;">${meta.observations}</div>
+                </div>
+            ` : '';
 
-                    <!-- RUBRIQUES ATTRIBUÉES À CETTE PAGE -->
-                    <div>
-                        ${secList.map(sec => renderSectionTableHtml(sec)).join('')}
+            const signaturesHtml = `
+                ${generalObsHtml}
+                <div style="display: flex; justify-content: space-between; gap: 14px; margin-top: 8px; margin-bottom: 6px;">
+                    <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
+                        <div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Technicien Référent</div>
+                        <div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                            <img src="${canvasTech.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
+                        </div>
+                        <div style="font-size: 8px; color: #64748b; margin-top: 3px;">Signé par : ${meta.tech}</div>
+                    </div>
+                    <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
+                        <div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Responsable Client / Chantier</div>
+                        <div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                            <img src="${canvasClient.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
+                        </div>
+                        <div style="font-size: 8px; color: #64748b; margin-top: 3px;">Représentant : ${meta.client}</div>
                     </div>
                 </div>
-				
-				    // 4. Bloc Observations Générales & Signatures
-				const generalObsHtml = meta.observations ? `
-					<div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 3px solid ${brandColor}; border-radius: 4px; padding: 6px 10px; margin-top: 8px; margin-bottom: 6px;">
-						<div style="font-size: 9px; font-weight: 700; color: #0f172a; text-transform: uppercase; margin-bottom: 2px;">
-							Observations Générales & Conclusions :
-						</div>
-						<div style="font-size: 8.5px; color: #334155; line-height: 1.35; white-space: pre-wrap;">${meta.observations}</div>
-					</div>
-				` : '';
+            `;
 
-				const signaturesHtml = `
-					${generalObsHtml}
-					<div style="display: flex; justify-content: space-between; gap: 14px; margin-top: 8px; margin-bottom: 6px;">
-						<div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
-							<div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Technicien Référent</div>
-							<div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
-								<img src="${canvasTech.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
-							</div>
-							<div style="font-size: 8px; color: #64748b; margin-top: 3px;">Signé par : ${meta.tech}</div>
-						</div>
-						<div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
-							<div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Responsable Client / Chantier</div>
-							<div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
-								<img src="${canvasClient.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
-							</div>
-							<div style="font-size: 8px; color: #64748b; margin-top: 3px;">Représentant : ${meta.client}</div>
-						</div>
-					</div>
-				`;
+            // 5. Calcul précis de hauteur pour maximiser le remplissage des pages A4
+            const PAGE1_MAX_HEIGHT = 740;
+            const OTHER_PAGE_MAX = 850;
 
-                <!-- BAS DE PAGE : Signatures sur la dernière page de contrôle -->
-                <div>
-                    ${isLastInspectionPage ? signaturesHtml : ''}
-                    <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px; margin-top: 8px;">
-                        EIFFAGE ENERGIE SYSTEMES • Fiche d'autocontrôle GTB • Page ${pIndex + 1}
-                    </div>
-                </div>
-            </div>
-        `;
-    });
+            let pagesContent = [];
+            let currentPageSections = [];
+            let currentAccumulatedHeight = 0;
 
-    // 7. Page Annexe Photos
-        // 4. Construction HTML de l'annexe photos (GRANDE TAILLE DYNAMIQUE)
-    let photosHtml = '';
-    if (photosList.length > 0) {
-        // Adaptation automatique de la taille selon le nombre de photos
-        const isSinglePhoto = photosList.length === 1;
-        const isTwoPhotos = photosList.length === 2;
+            function getSectionHeight(sec) {
+                return 42 + (sec.items.length * 21);
+            }
 
-        const gridCols = isSinglePhoto || isTwoPhotos ? '1fr' : 'repeat(2, 1fr)';
-        const photoHeight = isSinglePhoto ? '460px' : (isTwoPhotos ? '320px' : '230px');
+            currentFormState.sections.forEach(sec => {
+                const secHeight = getSectionHeight(sec);
+                const isFirstPage = pagesContent.length === 0;
+                const currentLimit = isFirstPage ? PAGE1_MAX_HEIGHT : OTHER_PAGE_MAX;
 
-        photosHtml = `
-            <div id="pdf-photos-page" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; min-height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
-                <div>
-                    <!-- EN-TÊTE ANNEXES -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid ${brandColor}; padding-bottom: 10px; margin-bottom: 16px;">
+                if (currentAccumulatedHeight + secHeight > currentLimit && currentPageSections.length > 0) {
+                    pagesContent.push(currentPageSections);
+                    currentPageSections = [sec];
+                    currentAccumulatedHeight = secHeight;
+                } else {
+                    currentPageSections.push(sec);
+                    currentAccumulatedHeight += secHeight;
+                }
+            });
+
+            if (currentPageSections.length > 0) {
+                pagesContent.push(currentPageSections);
+            }
+
+            // 6. Construction des conteneurs HTML de chaque page A4
+            let fullHtml = '';
+
+            pagesContent.forEach((secList, pIndex) => {
+                const isFirstPage = pIndex === 0;
+                const isLastInspectionPage = pIndex === pagesContent.length - 1;
+
+                fullHtml += `
+                    <div id="pdf-page-block-${pIndex}" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; min-height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 20px;">
                         <div>
-                            <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase;">ANNEXES • CONSTATS PHOTOGRAPHIQUES</div>
-                            <div style="font-size: 10px; color: #64748b;">Projet : <strong>${meta.project}</strong> | Repère : <strong>${meta.lot}</strong></div>
-                        </div>
-                        <div style="text-align: right; font-size: 11px; font-weight: 700; color: ${brandColor};">
-                            ${companySettings.name}
-                        </div>
-                    </div>
-
-                    <!-- GRILLE DE PHOTOS AGRANDIE -->
-                    <div style="display: grid; grid-template-columns: ${gridCols}; gap: 14px;">
-                        ${photosList.map((p, pIdx) => `
-                            <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #f8fafc; display: flex; flex-direction: column;">
-                                <div style="font-size: 10px; font-weight: 700; color: ${brandColor}; margin-bottom: 6px;">
-                                    Photo #${pIdx + 1} • ${p.section}
+                            <!-- EN-TÊTE -->
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid ${brandColor}; padding-bottom: 12px; margin-bottom: 14px;">
+                                <div>
+                                    ${logoImgTag}
+                                    <div style="font-size: 14px; font-weight: 800; color: ${brandColor}; text-transform: uppercase;">${companySettings.name}</div>
                                 </div>
-                                <div style="height: ${photoHeight}; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 4px;">
-                                    <img src="${p.photo}" style="max-height: 100%; max-width: 100%; object-fit: contain;">
-                                </div>
-                                <div style="font-size: 9px; font-weight: 600; color: #1e293b; margin-top: 6px;">
-                                    <strong>Point :</strong> ${p.label}
+                                <div style="text-align: right;">
+                                    <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase;">Fiche d'Autocontrôles GTB</div>
+                                    <div style="font-size: 11px; font-weight: 600; color: ${brandColor}; margin-top: 2px;">${currentFormState.title} ${pagesContent.length > 1 ? `(Page ${pIndex + 1}/${pagesContent.length})` : ''}</div>
+                                    <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Date : ${new Date().toLocaleDateString('fr-FR')}</div>
                                 </div>
                             </div>
-                        `).join('')}
+
+                            ${isFirstPage ? `
+                            <!-- CARTOUCHE CHANTIER (Page 1 uniquement) -->
+                            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 14px;">
+                                <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                                    <tr>
+                                        <td style="padding: 2px 4px; width: 50%;"><strong>Chantier / Projet :</strong> ${meta.project || '-'}</td>
+                                        <td style="padding: 2px 4px; width: 50%;"><strong>N° d'Affaire :</strong> ${meta.code || '-'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 2px 4px;"><strong>Client / Site :</strong> ${meta.client || '-'}</td>
+                                        <td style="padding: 2px 4px;"><strong>Équipement / Repère :</strong> ${meta.lot || '-'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 2px 4px;"><strong>Technicien Référent :</strong> ${meta.tech || '-'}</td>
+                                        <td style="padding: 2px 4px;"><strong>Date du Contrôle :</strong> ${meta.date || '-'}</td>
+                                    </tr>
+                                    ${meta.notes ? `
+                                    <tr>
+                                        <td colspan="2" style="padding: 4px 4px 0 4px; color: #475569; font-style: italic; border-top: 1px dashed #cbd5e1; margin-top: 2px;">
+                                            <strong>Remarque :</strong> ${meta.notes}
+                                        </td>
+                                    </tr>` : ''}
+                                </table>
+                            </div>
+
+                            <!-- SYNTHÈSE STATS (Page 1 uniquement) -->
+                            <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+                                <div style="flex: 1; background: #f1f5f9; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #64748b;">
+                                    <div style="font-size: 8px; color: #64748b; font-weight: 600; text-transform: uppercase;">Points Totaux</div>
+                                    <div style="font-size: 14px; font-weight: 700; color: #0f172a;">${total}</div>
+                                </div>
+                                <div style="flex: 1; background: #ecfdf5; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #10b981;">
+                                    <div style="font-size: 8px; color: #047857; font-weight: 600; text-transform: uppercase;">Conformes</div>
+                                    <div style="font-size: 14px; font-weight: 700; color: #047857;">${ok}</div>
+                                </div>
+                                <div style="flex: 1; background: #fef2f2; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #ef4444;">
+                                    <div style="font-size: 8px; color: #b91c1c; font-weight: 600; text-transform: uppercase;">Non Conformes</div>
+                                    <div style="font-size: 14px; font-weight: 700; color: #b91c1c;">${nok}</div>
+                                </div>
+                                <div style="flex: 1; background: #eff6ff; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #3b82f6;">
+                                    <div style="font-size: 8px; color: #1d4ed8; font-weight: 600; text-transform: uppercase;">Conformité</div>
+                                    <div style="font-size: 14px; font-weight: 700; color: #1d4ed8;">${rate}%</div>
+                                </div>
+                            </div>
+                            ` : `
+                            <div style="background: #f1f5f9; border-left: 3px solid ${brandColor}; padding: 6px 10px; font-size: 10px; font-weight: 600; color: #334155; margin-bottom: 12px;">
+                                Suite des contrôles • Projet : <strong>${meta.project}</strong> | Repère : <strong>${meta.lot}</strong>
+                            </div>
+                            `}
+
+                            <!-- RUBRIQUES ATTRIBUÉES À CETTE PAGE -->
+                            <div>
+                                ${secList.map(sec => renderSectionTableHtml(sec)).join('')}
+                            </div>
+                        </div>
+
+                        <!-- BAS DE PAGE -->
+                        <div>
+                            ${isLastInspectionPage ? signaturesHtml : ''}
+                            <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px; margin-top: 8px;">
+                                EIFFAGE ENERGIE SYSTEMES • Fiche d'autocontrôle GTB • Page ${pIndex + 1}
+                            </div>
+                        </div>
                     </div>
-                </div>
+                `;
+            });
 
-                <!-- PIED DE PAGE -->
-                <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
-                    EIFFAGE ENERGIE SYSTEMES • Annexe Photographique
-                </div>
-            </div>
-        `;
-    }
+            // 7. Page Annexe Photos (GRANDE TAILLE DYNAMIQUE)
+            let photosHtml = '';
+            if (photosList.length > 0) {
+                const isSinglePhoto = photosList.length === 1;
+                const isTwoPhotos = photosList.length === 2;
 
-    // 8. Injection et Capture PDF page par page
-    pdfContainer.innerHTML = fullHtml + photosHtml;
+                const gridCols = isSinglePhoto || isTwoPhotos ? '1fr' : 'repeat(2, 1fr)';
+                const photoHeight = isSinglePhoto ? '460px' : (isTwoPhotos ? '320px' : '230px');
 
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
+                photosHtml = `
+                    <div id="pdf-photos-page" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; min-height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <!-- EN-TÊTE ANNEXES -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid ${brandColor}; padding-bottom: 10px; margin-bottom: 16px;">
+                                <div>
+                                    <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase;">ANNEXES • CONSTATS PHOTOGRAPHIQUES</div>
+                                    <div style="font-size: 10px; color: #64748b;">Projet : <strong>${meta.project}</strong> | Repère : <strong>${meta.lot}</strong></div>
+                                </div>
+                                <div style="text-align: right; font-size: 11px; font-weight: 700; color: ${brandColor};">
+                                    ${companySettings.name}
+                                </div>
+                            </div>
 
-    // Rendu de chaque page de contrôle
-    for (let i = 0; i < pagesContent.length; i++) {
-        if (i > 0) pdf.addPage();
-        const pageEl = document.getElementById(`pdf-page-block-${i}`);
-        const canvas = await html2canvas(pageEl, { scale: 2, useCORS: true });
-        const imgData = canvas.toDataURL('image/png');
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    }
+                            <!-- GRILLE DE PHOTOS AGRANDIE -->
+                            <div style="display: grid; grid-template-columns: ${gridCols}; gap: 14px;">
+                                ${photosList.map((p, pIdx) => `
+                                    <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #f8fafc; display: flex; flex-direction: column;">
+                                        <div style="font-size: 10px; font-weight: 700; color: ${brandColor}; margin-bottom: 6px;">
+                                            Photo #${pIdx + 1} • ${p.section}
+                                        </div>
+                                        <div style="height: ${photoHeight}; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 4px;">
+                                            <img src="${p.photo}" style="max-height: 100%; max-width: 100%; object-fit: contain;">
+                                        </div>
+                                        <div style="font-size: 9px; font-weight: 600; color: #1e293b; margin-top: 6px;">
+                                            <strong>Point :</strong> ${p.label}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
 
-    // Rendu de l'annexe photos
-    if (photosList.length > 0) {
-        pdf.addPage();
-        const photosEl = document.getElementById('pdf-photos-page');
-        const canvasPhotos = await html2canvas(photosEl, { scale: 2, useCORS: true });
-        const imgDataPhotos = canvasPhotos.toDataURL('image/png');
-        const photoHeight = (canvasPhotos.height * pdfWidth) / canvasPhotos.width;
-        pdf.addImage(imgDataPhotos, 'PNG', 0, 0, pdfWidth, photoHeight);
-    }
-
-    // 9. Fusion des PDF joints
-    const basePdfBytes = pdf.output('arraybuffer');
-    let finalPdfBytes = basePdfBytes;
-
-    const pdfLibInstance = window.PDFLib || (typeof PDFLib !== 'undefined' ? PDFLib : null);
-
-    if (pdfDocsToMerge.length > 0 && pdfLibInstance) {
-        const { PDFDocument } = pdfLibInstance;
-        const mergedDoc = await PDFDocument.load(basePdfBytes);
-
-        for (const pdfDataUri of pdfDocsToMerge) {
-            try {
-                const base64Data = pdfDataUri.includes(',') ? pdfDataUri.split(',')[1] : pdfDataUri;
-                const binaryString = atob(base64Data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-
-                const donorDoc = await PDFDocument.load(bytes);
-                const donorPages = await mergedDoc.copyPages(donorDoc, donorDoc.getPageIndices());
-                donorPages.forEach(page => mergedDoc.addPage(page));
-            } catch (err) {
-                console.error('Erreur lors de la fusion d\'un PDF joint :', err);
+                        <!-- PIED DE PAGE -->
+                        <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
+                            EIFFAGE ENERGIE SYSTEMES • Annexe Photographique
+                        </div>
+                    </div>
+                `;
             }
-        }
-        finalPdfBytes = await mergedDoc.save();
-    }
 
-    // 10. Téléchargement du fichier final unifié
-    const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Autocontrole_${(meta.project || 'GTB').replace(/\s+/g, '_')}_${meta.date}.pdf`;
-    link.click();
+            // 8. Injection et Capture PDF page par page
+            pdfContainer.innerHTML = fullHtml + photosHtml;
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+
+            // Rendu de chaque page de contrôle
+            for (let i = 0; i < pagesContent.length; i++) {
+                if (i > 0) pdf.addPage();
+                const pageEl = document.getElementById(`pdf-page-block-${i}`);
+                const canvas = await html2canvas(pageEl, { scale: 2, useCORS: true });
+                const imgData = canvas.toDataURL('image/png');
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            }
+
+            // Rendu de l'annexe photos
+            if (photosList.length > 0) {
+                pdf.addPage();
+                const photosEl = document.getElementById('pdf-photos-page');
+                const canvasPhotos = await html2canvas(photosEl, { scale: 2, useCORS: true });
+                const imgDataPhotos = canvasPhotos.toDataURL('image/png');
+                const photoHeight = (canvasPhotos.height * pdfWidth) / canvasPhotos.width;
+                pdf.addImage(imgDataPhotos, 'PNG', 0, 0, pdfWidth, photoHeight);
+            }
+
+            // 9. Fusion des PDF joints
+            const basePdfBytes = pdf.output('arraybuffer');
+            let finalPdfBytes = basePdfBytes;
+
+            const pdfLibInstance = window.PDFLib || (typeof PDFLib !== 'undefined' ? PDFLib : null);
+
+            if (pdfDocsToMerge.length > 0 && pdfLibInstance) {
+                const { PDFDocument } = pdfLibInstance;
+                const mergedDoc = await PDFDocument.load(basePdfBytes);
+
+                for (const pdfDataUri of pdfDocsToMerge) {
+                    try {
+                        const base64Data = pdfDataUri.includes(',') ? pdfDataUri.split(',')[1] : pdfDataUri;
+                        const binaryString = atob(base64Data);
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+
+                        const donorDoc = await PDFDocument.load(bytes);
+                        const donorPages = await mergedDoc.copyPages(donorDoc, donorDoc.getPageIndices());
+                        donorPages.forEach(page => mergedDoc.addPage(page));
+                    } catch (err) {
+                        console.error('Erreur lors de la fusion d\'un PDF joint :', err);
+                    }
+                }
+                finalPdfBytes = await mergedDoc.save();
+            }
+
+            // 10. Téléchargement du fichier final unifié
+            const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Autocontrole_${(meta.project || 'GTB').replace(/\s+/g, '_')}_${meta.date}.pdf`;
+            link.click();
         }
     </script>
 </body>
