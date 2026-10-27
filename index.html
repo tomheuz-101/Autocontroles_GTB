@@ -1097,12 +1097,12 @@ function setupCanvas(canvas) {
 
         function addModalSection() { modalSectionsState.push({ title: 'Nouvelle Rubrique', items: [{ label: 'Point', type: 'status' }] }); renderModalSectionsBuilder(); }
 
-// --- MOTEUR DE GÉNÉRATION PDF MULTI-PAGES AVEC FUSION DE DOCUMENTS ---
+// --- GÉNÉRATION PDF MULTI-PAGES AVEC SAUT DE PAGE AUTOMATIQUE ---
 async function generatePDF() {
     const meta = getActiveMeta();
     const pdfContainer = document.getElementById('pdf-render-area');
 
-    // 1. Calcul des statistiques
+    // 1. Statistiques
     let total = 0, ok = 0, nok = 0, na = 0;
     currentFormState.sections.forEach(sec => sec.items.forEach(item => {
         total++;
@@ -1117,7 +1117,7 @@ async function generatePDF() {
         ? '<img src="' + companySettings.logo + '" style="max-height: 40px; max-width: 140px; object-fit: contain; margin-bottom: 4px;">' 
         : '';
 
-    // 2. Récupération des photos et des PDF joints
+    // 2. Pièces jointes (Photos & PDF)
     let photosList = [];
     let pdfDocsToMerge = [];
 
@@ -1135,144 +1135,140 @@ async function generatePDF() {
         });
     });
 
-    // 3. Construction HTML de la PAGE 1 (Contrôle & Signatures)
-    const page1Html = `
-        <div id="pdf-page-1" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; min-height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
-            <div>
-                <!-- EN-TÊTE -->
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid ${brandColor}; padding-bottom: 12px; margin-bottom: 14px;">
-                    <div>
-                        ${logoImgTag}
-                        <div style="font-size: 14px; font-weight: 800; color: ${brandColor}; text-transform: uppercase;">${companySettings.name}</div>
-                       <!-- <div style="font-size: 9px; color: #64748b; margin-top: 2px;">SIRET : ${companySettings.siret || '-'}</div>-->
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase;">Fiche d'Autocontrôles GTB</div>
-                        <div style="font-size: 11px; font-weight: 600; color: ${brandColor}; margin-top: 2px;">${currentFormState.title}</div>
-                        <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Date : ${new Date().toLocaleDateString('fr-FR')}</div>
-                    </div>
+    // 3. Construction HTML du corps principal (sans hauteur fixe pour laisser grandir)
+    const mainBodyHtml = `
+        <div id="pdf-main-content" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; box-sizing: border-box;">
+            
+            <!-- EN-TÊTE -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid ${brandColor}; padding-bottom: 12px; margin-bottom: 14px;">
+                <div>
+                    ${logoImgTag}
+                    <div style="font-size: 14px; font-weight: 800; color: ${brandColor}; text-transform: uppercase;">${companySettings.name}</div>
+                    <div style="font-size: 9px; color: #64748b; margin-top: 2px;">SIRET : ${companySettings.siret || '-'}</div>
                 </div>
-
-                <!-- CARTOUCHE DE CHANTIER -->
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 14px;">
-                    <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
-                        <tr>
-                            <td style="padding: 2px 4px; width: 50%;"><strong>Chantier / Projet :</strong> ${meta.project || '-'}</td>
-                            <td style="padding: 2px 4px; width: 50%;"><strong>N° d'Affaire :</strong> ${meta.code || '-'}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 2px 4px;"><strong>Client / Site :</strong> ${meta.client || '-'}</td>
-                            <td style="padding: 2px 4px;"><strong>Équipement / Repère :</strong> ${meta.lot || '-'}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 2px 4px;"><strong>Technicien Référent :</strong> ${meta.tech || '-'}</td>
-                            <td style="padding: 2px 4px;"><strong>Date du Contrôle :</strong> ${meta.date || '-'}</td>
-                        </tr>
-                        ${meta.notes ? `
-                        <tr>
-                            <td colspan="2" style="padding: 4px 4px 0 4px; color: #475569; font-style: italic; border-top: 1px dashed #cbd5e1; margin-top: 2px;">
-                                <strong>Remarque :</strong> ${meta.notes}
-                            </td>
-                        </tr>` : ''}
-                    </table>
-                </div>
-
-                <!-- STATS & KPI -->
-                <div style="display: flex; gap: 8px; margin-bottom: 14px;">
-                    <div style="flex: 1; background: #f1f5f9; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #64748b;">
-                        <div style="font-size: 8px; color: #64748b; font-weight: 600; text-transform: uppercase;">Points Totaux</div>
-                        <div style="font-size: 14px; font-weight: 700; color: #0f172a;">${total}</div>
-                    </div>
-                    <div style="flex: 1; background: #ecfdf5; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #10b981;">
-                        <div style="font-size: 8px; color: #047857; font-weight: 600; text-transform: uppercase;">Conformes</div>
-                        <div style="font-size: 14px; font-weight: 700; color: #047857;">${ok}</div>
-                    </div>
-                    <div style="flex: 1; background: #fef2f2; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #ef4444;">
-                        <div style="font-size: 8px; color: #b91c1c; font-weight: 600; text-transform: uppercase;">Non Conformes</div>
-                        <div style="font-size: 14px; font-weight: 700; color: #b91c1c;">${nok}</div>
-                    </div>
-                    <div style="flex: 1; background: #eff6ff; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #3b82f6;">
-                        <div style="font-size: 8px; color: #1d4ed8; font-weight: 600; text-transform: uppercase;">Conformité</div>
-                        <div style="font-size: 14px; font-weight: 700; color: #1d4ed8;">${rate}%</div>
-                    </div>
-                </div>
-
-                <!-- TABLEAUX DES RUBRIQUES -->
-                <div style="margin-bottom: 14px;">
-                    ${currentFormState.sections.map(sec => `
-                        <div style="margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden;">
-                            <div style="background: #1e293b; color: #ffffff; padding: 5px 8px; font-size: 10px; font-weight: 700;">
-                                ${sec.title}
-                            </div>
-                            <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
-                                <thead>
-                                    <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #64748b;">
-                                        <th style="padding: 4px 6px; width: 45%;">Point de contrôle</th>
-                                        <th style="padding: 4px 6px; width: 20%;">Valeur / Mesure</th>
-                                        <th style="padding: 4px 6px; width: 15%; text-align: center;">Statut</th>
-                                        <th style="padding: 4px 6px; width: 20%;">Observations</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${sec.items.map((item, idx) => {
-                                        let statusHtml = '<b style="color: #047857;">✓ OK</b>';
-                                        if (item.status === 'NOK') statusHtml = '<b style="color: #dc2626;">✕ NOK</b>';
-                                        else if (item.status === 'NA') statusHtml = '<span style="color: #64748b;">— N/A</span>';
-
-                                        let valDisplay = item.valText || item.valNumeric || '-';
-                                        if (item.unit && valDisplay !== '-' && !valDisplay.includes(item.unit)) {
-                                            valDisplay += ' ' + item.unit;
-                                        }
-
-                                        const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
-                                        return `
-                                        <tr style="background: ${rowBg}; border-bottom: 1px solid #f1f5f9;">
-                                            <td style="padding: 4px 6px; font-weight: 600; color: #1e293b;">${item.label}</td>
-                                            <td style="padding: 4px 6px; color: #475569; font-family: monospace;">${valDisplay}</td>
-                                            <td style="padding: 4px 6px; text-align: center;">${statusHtml}</td>
-                                            <td style="padding: 4px 6px; color: #64748b;">${item.comment || '-'}</td>
-                                        </tr>`;
-                                    }).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    `).join('')}
+                <div style="text-align: right;">
+                    <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase;">Fiche d'Autocontrôle GTB</div>
+                    <div style="font-size: 11px; font-weight: 600; color: ${brandColor}; margin-top: 2px;">${currentFormState.title}</div>
+                    <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Date : ${new Date().toLocaleDateString('fr-FR')}</div>
                 </div>
             </div>
 
-            <!-- BLOC BAS : SIGNATURES & PIED DE PAGE -->
-            <div>
-                <div style="display: flex; justify-content: space-between; gap: 14px; margin-bottom: 8px;">
-                    <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
-                        <div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Technicien Référent</div>
-                        <div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
-                            <img src="${canvasTech.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
-                        </div>
-                        <div style="font-size: 8px; color: #64748b; margin-top: 3px;">Signé par : ${meta.tech}</div>
-                    </div>
-                    <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
-                        <div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Responsable Client / Chantier</div>
-                        <div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
-                            <img src="${canvasClient.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
-                        </div>
-                        <div style="font-size: 8px; color: #64748b; margin-top: 3px;">Représentant : ${meta.client}</div>
-                    </div>
-                </div>
+            <!-- CARTOUCHE CHANTIER -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 14px;">
+                <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 2px 4px; width: 50%;"><strong>Chantier / Projet :</strong> ${meta.project || '-'}</td>
+                        <td style="padding: 2px 4px; width: 50%;"><strong>N° d'Affaire :</strong> ${meta.code || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px 4px;"><strong>Client / Site :</strong> ${meta.client || '-'}</td>
+                        <td style="padding: 2px 4px;"><strong>Équipement / Repère :</strong> ${meta.lot || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px 4px;"><strong>Technicien Référent :</strong> ${meta.tech || '-'}</td>
+                        <td style="padding: 2px 4px;"><strong>Date du Contrôle :</strong> ${meta.date || '-'}</td>
+                    </tr>
+                    ${meta.notes ? `
+                    <tr>
+                        <td colspan="2" style="padding: 4px 4px 0 4px; color: #475569; font-style: italic; border-top: 1px dashed #cbd5e1; margin-top: 2px;">
+                            <strong>Remarque :</strong> ${meta.notes}
+                        </td>
+                    </tr>` : ''}
+                </table>
+            </div>
 
-                <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
-                    EIFFAGE ENERGIE SYSTEMES - Fiches d'autocontrôles • Document de réception technique • Page 1
+            <!-- SYNTHÈSE STATS -->
+            <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+                <div style="flex: 1; background: #f1f5f9; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #64748b;">
+                    <div style="font-size: 8px; color: #64748b; font-weight: 600; text-transform: uppercase;">Points Totaux</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #0f172a;">${total}</div>
                 </div>
+                <div style="flex: 1; background: #ecfdf5; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #10b981;">
+                    <div style="font-size: 8px; color: #047857; font-weight: 600; text-transform: uppercase;">Conformes</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #047857;">${ok}</div>
+                </div>
+                <div style="flex: 1; background: #fef2f2; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #ef4444;">
+                    <div style="font-size: 8px; color: #b91c1c; font-weight: 600; text-transform: uppercase;">Non Conformes</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #b91c1c;">${nok}</div>
+                </div>
+                <div style="flex: 1; background: #eff6ff; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #3b82f6;">
+                    <div style="font-size: 8px; color: #1d4ed8; font-weight: 600; text-transform: uppercase;">Conformité</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #1d4ed8;">${rate}%</div>
+                </div>
+            </div>
+
+            <!-- RUBRIQUES ET POINTS DE CONTRÔLE -->
+            <div style="margin-bottom: 16px;">
+                ${currentFormState.sections.map(sec => `
+                    <div style="margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden;">
+                        <div style="background: #1e293b; color: #ffffff; padding: 5px 8px; font-size: 10px; font-weight: 700;">
+                            ${sec.title}
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
+                            <thead>
+                                <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #64748b;">
+                                    <th style="padding: 4px 6px; width: 45%;">Point de contrôle</th>
+                                    <th style="padding: 4px 6px; width: 20%;">Valeur / Mesure</th>
+                                    <th style="padding: 4px 6px; width: 15%; text-align: center;">Statut</th>
+                                    <th style="padding: 4px 6px; width: 20%;">Observations</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sec.items.map((item, idx) => {
+                                    let statusHtml = '<b style="color: #047857;">✓ OK</b>';
+                                    if (item.status === 'NOK') statusHtml = '<b style="color: #dc2626;">✕ NOK</b>';
+                                    else if (item.status === 'NA') statusHtml = '<span style="color: #64748b;">— N/A</span>';
+
+                                    let valDisplay = item.valText || item.valNumeric || '-';
+                                    if (item.unit && valDisplay !== '-' && !valDisplay.includes(item.unit)) {
+                                        valDisplay += ' ' + item.unit;
+                                    }
+
+                                    const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+                                    return `
+                                    <tr style="background: ${rowBg}; border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 4px 6px; font-weight: 600; color: #1e293b;">${item.label}</td>
+                                        <td style="padding: 4px 6px; color: #475569; font-family: monospace;">${valDisplay}</td>
+                                        <td style="padding: 4px 6px; text-align: center;">${statusHtml}</td>
+                                        <td style="padding: 4px 6px; color: #64748b;">${item.comment || '-'}</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `).join('')}
+            </div>
+
+            <!-- SIGNATURES -->
+            <div style="display: flex; justify-content: space-between; gap: 14px; margin-top: 14px; margin-bottom: 8px;">
+                <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
+                    <div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Technicien Référent</div>
+                    <div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                        <img src="${canvasTech.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
+                    </div>
+                    <div style="font-size: 8px; color: #64748b; margin-top: 3px;">Signé par : ${meta.tech}</div>
+                </div>
+                <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; background: #f8fafc;">
+                    <div style="font-size: 9px; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 4px;">Visa Responsable Client / Chantier</div>
+                    <div style="height: 50px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                        <img src="${canvasClient.toDataURL()}" style="max-height: 45px; max-width: 90%; object-fit: contain;">
+                    </div>
+                    <div style="font-size: 8px; color: #64748b; margin-top: 3px;">Représentant : ${meta.client}</div>
+                </div>
+            </div>
+
+            <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
+                GTB Control Master • Document d'autocontrôle et de réception technique
             </div>
         </div>
     `;
 
-    // 4. Construction HTML de la PAGE 2 (ANNEXES PHOTOS) si des photos existent
-    let page2Html = '';
+    // 4. Construction HTML de l'annexe photos
+    let photosHtml = '';
     if (photosList.length > 0) {
-        page2Html = `
-            <div id="pdf-page-2" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; min-height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
+        photosHtml = `
+            <div id="pdf-photos-content" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; min-height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
-                    <!-- EN-TÊTE ANNEXES -->
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid ${brandColor}; padding-bottom: 10px; margin-bottom: 16px;">
                         <div>
                             <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase;">ANNEXES • CONSTATS PHOTOGRAPHIQUES</div>
@@ -1283,7 +1279,6 @@ async function generatePDF() {
                         </div>
                     </div>
 
-                    <!-- GRILLE DE PHOTOS -->
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;">
                         ${photosList.map((p, pIdx) => `
                             <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; background: #f8fafc;">
@@ -1301,84 +1296,79 @@ async function generatePDF() {
                     </div>
                 </div>
 
-                <!-- PIED DE PAGE 2 -->
                 <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
-                    EIFFAGE ENERGIE SYSTEMES - Fiche d'autocontrôles • Annexe Photographique
+                    GTB Control Master • Annexe Photographique
                 </div>
             </div>
         `;
     }
 
-    // 5. Injection et Capture PDF
-    pdfContainer.innerHTML = page1Html + page2Html;
+    // 5. Rendu et découpage automatique des pages
+    pdfContainer.innerHTML = mainBodyHtml + photosHtml;
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfWidth = pdf.internal.pageSize.getWidth();   // 210 mm
+    const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
 
-    // Rendu Page 1
-    const canvas1 = await html2canvas(document.getElementById('pdf-page-1'), { scale: 2, useCORS: true });
-    const imgData1 = canvas1.toDataURL('image/png');
-    const pdfHeight1 = (canvas1.height * pdfWidth) / canvas1.width;
-    pdf.addImage(imgData1, 'PNG', 0, 0, pdfWidth, pdfHeight1);
+    // Capture du contenu principal
+    const canvasMain = await html2canvas(document.getElementById('pdf-main-content'), { scale: 2, useCORS: true });
+    const imgDataMain = canvasMain.toDataURL('image/png');
+    const totalImgHeightMm = (canvasMain.height * pdfWidth) / canvasMain.width;
 
-    // Rendu Page 2 (si photos présentes)
-    if (photosList.length > 0) {
+    // 📄 Découpage dynamique en plusieurs pages si le document est long
+    let heightLeft = totalImgHeightMm;
+    let position = 0;
+
+    // Page 1
+    pdf.addImage(imgDataMain, 'PNG', 0, position, pdfWidth, totalImgHeightMm);
+    heightLeft -= pdfHeight;
+
+    // Pages suivantes (si la liste de points est très longue)
+    while (heightLeft > 0) {
+        position -= pdfHeight;
         pdf.addPage();
-        const canvas2 = await html2canvas(document.getElementById('pdf-page-2'), { scale: 2, useCORS: true });
-        const imgData2 = canvas2.toDataURL('image/png');
-        const pdfHeight2 = (canvas2.height * pdfWidth) / canvas2.width;
-        pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, pdfHeight2);
+        pdf.addImage(imgDataMain, 'PNG', 0, position, pdfWidth, totalImgHeightMm);
+        heightLeft -= pdfHeight;
     }
 
-    // 📄 FUSION INTELLIGENTE DES PDF AVEC CHARGEMENT AUTOMATIQUE DE SECOURS
+    // Annexe Photos (sur une nouvelle page dédiée)
+    if (photosList.length > 0) {
+        pdf.addPage();
+        const canvasPhotos = await html2canvas(document.getElementById('pdf-photos-content'), { scale: 2, useCORS: true });
+        const imgDataPhotos = canvasPhotos.toDataURL('image/png');
+        const photoHeightMm = (canvasPhotos.height * pdfWidth) / canvasPhotos.width;
+        pdf.addImage(imgDataPhotos, 'PNG', 0, 0, pdfWidth, photoHeightMm);
+    }
+
+    // 📄 Fusion des PDF joints
     const basePdfBytes = pdf.output('arraybuffer');
     let finalPdfBytes = basePdfBytes;
 
-    if (pdfDocsToMerge.length > 0) {
-        // 1. Si PDFLib n'est pas encore chargé, on le télécharge automatiquement
-        if (!window.PDFLib) {
+    if (pdfDocsToMerge.length > 0 && (window.PDFLib || typeof PDFLib !== 'undefined')) {
+        const { PDFDocument } = window.PDFLib || PDFLib;
+        const mergedDoc = await PDFDocument.load(basePdfBytes);
+
+        for (const pdfDataUri of pdfDocsToMerge) {
             try {
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.9/dist/pdf-lib.min.js';
-                    script.onload = () => resolve();
-                    script.onerror = () => reject();
-                    document.head.appendChild(script);
-                });
-            } catch (e) {
-                console.error('Impossible de charger PDFLib :', e);
-            }
-        }
-
-        // 2. Fusion des documents PDF joints
-        if (window.PDFLib) {
-            const { PDFDocument } = window.PDFLib;
-            const mergedDoc = await PDFDocument.load(basePdfBytes);
-
-            for (const pdfDataUri of pdfDocsToMerge) {
-                try {
-                    const base64Data = pdfDataUri.includes(',') ? pdfDataUri.split(',')[1] : pdfDataUri;
-                    const binaryString = atob(base64Data);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
-                    }
-
-                    const donorDoc = await PDFDocument.load(bytes);
-                    const donorPages = await mergedDoc.copyPages(donorDoc, donorDoc.getPageIndices());
-                    donorPages.forEach(page => mergedDoc.addPage(page));
-                } catch (err) {
-                    console.error('Erreur lors de la fusion d\'un document PDF :', err);
+                const base64Data = pdfDataUri.includes(',') ? pdfDataUri.split(',')[1] : pdfDataUri;
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
                 }
+
+                const donorDoc = await PDFDocument.load(bytes);
+                const donorPages = await mergedDoc.copyPages(donorDoc, donorDoc.getPageIndices());
+                donorPages.forEach(page => mergedDoc.addPage(page));
+            } catch (err) {
+                console.error('Erreur fusion PDF :', err);
             }
-            finalPdfBytes = await mergedDoc.save();
-        } else {
-            alert('⚠️ Note : Le document a été généré, mais la fusion du schéma joint a échoué (connexion bloquée vers le CDN).');
         }
+        finalPdfBytes = await mergedDoc.save();
     }
 
-    // Téléchargement du fichier final unifié
+    // Téléchargement final
     const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
