@@ -960,12 +960,12 @@
 		async function saveActiveFormToCloud() {
 			const meta = getActiveMeta();
 
-			// Si la fiche a déjà un identifiant, on le réutilise pour mettre à jour la ligne
 			const isExisting = !!currentLoadedFicheId;
 			const recordId = currentLoadedFicheId || Date.now();
 
 			const record = {
 				id: recordId,
+				user_id: currentUser ? currentUser.id : null, // 👈 Rattachement à l'utilisateur connecté
 				chantier: meta.project,
 				client: meta.client,
 				tech: meta.tech,
@@ -979,18 +979,13 @@
 				}
 			};
 
-			// Utilisation de .upsert() pour mettre à jour ou créer si nouveau
 			const { error } = await _supabase.from('gtb_fiches').upsert([record]);
 			
 			if (error) {
 				alert('Erreur sauvegarde cloud : ' + error.message);
 			} else {
-				currentLoadedFicheId = recordId; // Verrouille l'ID pour les sauvegardes suivantes
-				if (isExisting) {
-					alert('✅ Fiche mise à jour dans le Cloud avec succès ! ☁️');
-				} else {
-					alert('✅ Nouvelle fiche enregistrée dans le Cloud avec succès ! ☁️');
-				}
+				currentLoadedFicheId = recordId;
+				alert(isExisting ? '✅ Fiche mise à jour dans le Cloud !' : '✅ Fiche enregistrée dans votre espace Cloud !');
 			}
 		}
         
@@ -1008,10 +1003,16 @@
 
         async function fetchCloudHistory() {
 			const tbody = document.getElementById('archive-table-body');
-			const { data, error } = await _supabase.from('gtb_fiches').select('*').order('created_at', { ascending: false });
+			
+			// 👇 Requête filtrée sur l'utilisateur connecté
+			const { data, error } = await _supabase
+				.from('gtb_fiches')
+				.select('*')
+				.eq('user_id', currentUser.id)
+				.order('created_at', { ascending: false });
 			
 			if (!data || data.length === 0) {
-				tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500">Aucune fiche enregistrée dans le Cloud.</td></tr>`;
+				tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500">Aucune fiche enregistrée pour votre compte.</td></tr>`;
 				return;
 			}
 
