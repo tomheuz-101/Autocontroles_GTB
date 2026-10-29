@@ -565,28 +565,30 @@
         }
 
         async function saveTemplateToCloud() {
-            const title = document.getElementById('tpl-edit-title').value.trim();
-            if (!title) { alert('Veuillez entrer un titre'); return; }
+			const title = document.getElementById('tpl-edit-title').value.trim();
+			if (!title) { alert('Veuillez entrer un titre'); return; }
 
-            const templateData = {
-                id: editingTemplateId || ('tpl-' + Date.now()),
-                name: title,
-                title: title,
-                category: document.getElementById('tpl-edit-cat').value || 'GTB',
-                description: document.getElementById('tpl-edit-desc').value || '',
-                sections: modalSectionsState
-            };
+			const templateData = {
+				id: editingTemplateId || ('tpl-' + Date.now()),
+				name: title,
+				title: title,
+				category: document.getElementById('tpl-edit-cat').value || 'GTB',
+				description: document.getElementById('tpl-edit-desc').value || '',
+				author_email: currentUser ? currentUser.email : 'admin@eiffage.com', // 👈 Admin créateur du modèle
+				sections: modalSectionsState,
+				items: modalSectionsState.flatMap(s => s.items)
+			};
 
-            const { error } = await _supabase.from('gtb_templates').upsert([templateData]);
-            if (error) {
-                alert('Erreur lors de la sauvegarde cloud : ' + error.message);
-            } else {
-                alert('✅ Modèle synchronisé dans le Cloud !');
-                closeTemplateModal();
-                await fetchTemplatesFromCloud();
-                renderTemplateSelectOptions();
-            }
-        }
+			const { error } = await _supabase.from('gtb_templates').upsert([templateData]);
+			if (error) {
+				alert('Erreur lors de la sauvegarde cloud : ' + error.message);
+			} else {
+				alert('✅ Modèle synchronisé dans le Cloud !');
+				closeTemplateModal();
+				await fetchTemplatesFromCloud();
+				renderTemplateSelectOptions();
+			}
+		}
 
         async function deleteTemplate(tplId) {
             if (confirm('Supprimer ce modèle du Cloud ?')) {
@@ -962,15 +964,21 @@
 			const isExisting = !!currentLoadedFicheId;
 			const recordId = currentLoadedFicheId || Date.now();
 
+			// Recherche de l'administrateur créateur du modèle
+			const currentTpl = templates.find(t => t.id === currentFormState.templateId || t.title === currentFormState.title);
+			const templateAuthor = currentTpl ? (currentTpl.author_email || 'thomas.heuze@eiffage.com') : 'thomas.heuze@eiffage.com';
+
 			const record = {
 				id: recordId,
 				user_id: currentUser ? currentUser.id : null,
-				author_email: currentUser ? currentUser.email : meta.tech, // 👈 Mémorise l'auteur de la fiche
+				author_email: currentUser ? currentUser.email : meta.tech,
+				template_id: currentFormState.templateId,
+				template_name: currentFormState.title,
+				template_author: templateAuthor, // 👈 Rattache la fiche à l'Admin créateur du modèle
 				chantier: meta.project,
 				client: meta.client,
 				tech: meta.tech,
 				date: meta.date,
-				template_name: currentFormState.title,
 				data: { 
 					meta, 
 					sections: currentFormState.sections, 
@@ -1003,17 +1011,28 @@
 
         async function fetchCloudHistory() {
 			const tbody = document.getElementById('archive-table-body');
-			const isAdmin = userRole === 'admin';
+			const isSuperAdmin = userRole === 'superadmin';
+			const isAdmin = userRole === 'admin' || isSuperAdmin;
 
-			// 1. Requête : les admins voient TOUT, les techniciens ne voient que les leurs
-			let query = _supabase.from('gtb_fiches').select('*').order('created_at', { ascending: false });
-			if (!isAdmin && currentUser) {
-				query = query.eq('user_id', currentUser.id);
+			// 1. Récupération des fiches
+			const { data, error } = await _supabase
+				.from('gtb_fiches')
+				.select('*')
+				.order('created_at', { ascending: false });
+
+			// 2. Filtrage intelligent selon le profil
+			let filteredData = data || [];
+			if (!isSuperAdmin) {
+				if (userRole === 'admin') {
+					// L'administrateur ne voit QUE les fiches issues de ses propres modèles
+					filteredData = filteredData.filter(f => f.template_author === currentUser?.email || !f.template_author);
+				} else {
+					// Le technicien standard ne voit que les fiches qu'il a créées
+					filteredData = filteredData.filter(f => f.user_id === currentUser?.id || f.author_email === currentUser?.email);
+				}
 			}
 
-			const { data, error } = await query;
-			
-			// 2. Mise à jour dynamique de l'en-tête du tableau (colonne "Créé par" pour Admin)
+			// 3. Mise à jour de l'en-tête du tableau
 			const thead = document.querySelector('#tab-archive thead tr');
 			if (thead) {
 				thead.innerHTML = `
@@ -1022,21 +1041,21 @@
 					<th class="p-3 text-cyan-400">Équipement / Repère</th>
 					<th class="p-3">Technicien</th>
 					<th class="p-3">Date</th>
-					${isAdmin ? '<th class="p-3 text-amber-400 font-semibold">Créé par</th>' : ''}
+					<th class="p-3 text-amber-400 font-semibold">Admin Référent</th>
 					<th class="p-3 text-right">Actions</th>
 				`;
 			}
 
-			if (!data || data.length === 0) {
-				tbody.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" class="text-center py-6 text-slate-500">Aucune fiche enregistrée.</td></tr>`;
+			if (!filteredData || filteredData.length === 0) {
+				tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500">Aucune fiche trouvée pour votre profil.</td></tr>`;
 				return;
 			}
 
-			// 3. Rendu des lignes
-			tbody.innerHTML = data.map(f => {
+			// 4. Rendu des lignes
+			tbody.innerHTML = filteredData.map(f => {
 				const codeAffaire = f.data?.meta?.code ? `<span class="text-cyan-400 font-mono text-[10px]"> [${f.data.meta.code}]</span>` : '';
 				const repereLot = f.data?.meta?.lot || '-';
-				const author = f.author_email || f.tech || 'Inconnu';
+				const adminReferent = f.template_author || 'thomas.heuze@eiffage.com';
 
 				return `
 					<tr class="hover:bg-slate-800/50 transition">
@@ -1053,12 +1072,12 @@
 						<td class="p-3 text-slate-300">${f.tech}</td>
 						<td class="p-3 text-slate-400 font-mono text-xs">${f.date}</td>
 						
-						${isAdmin ? `
+						<!-- Colonne Admin Référent du Modèle -->
 						<td class="p-3">
-							<span class="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-700/60 text-amber-300 font-mono text-[11px]">
-								${author}
+							<span class="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-700/60 text-amber-300 font-mono text-[11px] flex items-center gap-1 w-fit">
+								<i class="fa-solid fa-user-gear text-[10px]"></i> ${adminReferent}
 							</span>
-						</td>` : ''}
+						</td>
 
 						<td class="p-3 text-right">
 							<div class="inline-flex items-center space-x-1">
