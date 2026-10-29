@@ -462,16 +462,18 @@
             showAuthScreen();
         }
 
-        async function fetchUserProfile() {
-            const { data } = await _supabase.from('profiles').select('role').eq('id', currentUser.id).single();
-            if (data) userRole = data.role;
+     async function fetchUserProfile() {
+			const { data } = await _supabase.from('profiles').select('role').eq('id', currentUser.id).single();
+			if (data) userRole = data.role;
 
-            document.getElementById('user-role-badge').innerText = `${currentUser.email} (${userRole.toUpperCase()})`;
-            if (userRole === 'admin') {
-                document.getElementById('nav-admin').classList.remove('hidden');
-                document.getElementById('admin-indicator').classList.remove('hidden');
-            }
-        }
+			document.getElementById('user-role-badge').innerText = `${currentUser.email} (${userRole.toUpperCase()})`;
+			
+			// Affiche le bouton Console Admin pour admin ET superadmin
+			if (userRole === 'admin' || userRole === 'superadmin') {
+				document.getElementById('nav-admin').classList.remove('hidden');
+				document.getElementById('admin-indicator').classList.remove('hidden');
+			}
+		}
 
         // --- GESTION DES PIÈCES JOINTES (IMAGES & FICHIERS PDF) ---
         function triggerItemAttachment(sIdx, iIdx) {
