@@ -375,6 +375,63 @@
                         </div>
                     </div>
                 </div>
+				
+				<!-- MODULE GESTION DES UTILISATEURS -->
+				<div class="mt-8 bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-6 shadow-xl">
+					<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-700">
+						<div>
+							<h3 class="text-md font-bold text-white flex items-center gap-2">
+								<i class="fa-solid fa-users-gear text-cyan-400"></i> Gestion des Collaborateurs & Droits d'Accès
+							</h3>
+							<p class="text-xs text-slate-400">Ajoutez des techniciens ou des administrateurs et modifiez leurs permissions.</p>
+						</div>
+						<button onclick="fetchUsersList()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition flex items-center gap-1.5">
+							<i class="fa-solid fa-rotate"></i> Actualiser la liste
+						</button>
+					</div>
+
+					<!-- Formulaire d'ajout rapide -->
+					<form onsubmit="handleCreateUser(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-900/90 p-4 rounded-xl border border-slate-700">
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">E-mail du collaborateur *</label>
+							<input type="email" id="new-user-email" required placeholder="prenom.nom@eiffage.com" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
+						</div>
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mot de passe initial *</label>
+							<input type="password" id="new-user-pwd" required minlength="6" placeholder="Au moins 6 caractères" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
+						</div>
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Rôle attribué</label>
+							<select id="new-user-role" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none font-medium">
+								<option value="technician">Technicien (Saisie de fiches)</option>
+								<option value="admin">Administrateur (Modèles + ses fiches)</option>
+								<option value="superadmin">Super-Administrateur (Accès Total)</option>
+							</select>
+						</div>
+						<div class="flex items-end">
+							<button type="submit" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition flex justify-center items-center gap-1.5 shadow">
+								<i class="fa-solid fa-user-plus"></i> Créer l'utilisateur
+							</button>
+						</div>
+					</form>
+
+					<!-- Tableau des utilisateurs -->
+					<div class="overflow-x-auto border border-slate-700 rounded-lg">
+						<table class="w-full text-left text-xs text-slate-300">
+							<thead class="bg-slate-900 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-700">
+								<tr>
+									<th class="p-3">Utilisateur / E-mail</th>
+									<th class="p-3">Rôle actuel</th>
+									<th class="p-3">Date de création</th>
+									<th class="p-3 text-right">Actions</th>
+								</tr>
+							</thead>
+							<tbody id="users-table-body" class="divide-y divide-slate-700/50">
+								<tr><td colspan="4" class="text-center py-6 text-slate-500">Chargement des utilisateurs...</td></tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
             </section>
         </main>
     </div>
@@ -500,6 +557,120 @@
             currentUser = null;
             showAuthScreen();
         }
+				
+				// --- MODULE GESTION DES UTILISATEURS ---
+
+		// 1. Récupération de la liste des utilisateurs depuis Supabase
+		async function fetchUsersList() {
+			const tbody = document.getElementById('users-table-body');
+			if (!tbody) return;
+
+			const { data: profiles, error } = await _supabase
+				.from('profiles')
+				.select('*')
+				.order('created_at', { ascending: false });
+
+			if (!profiles || profiles.length === 0) {
+				tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-500">Aucun utilisateur trouvé.</td></tr>`;
+				return;
+			}
+
+			tbody.innerHTML = profiles.map(u => {
+				const isCurrent = currentUser && currentUser.id === u.id;
+				
+				let roleBadgeColor = 'bg-slate-800 text-slate-300 border-slate-700';
+				if (u.role === 'admin') roleBadgeColor = 'bg-amber-950/80 text-amber-300 border-amber-700';
+				if (u.role === 'superadmin') roleBadgeColor = 'bg-cyan-950/80 text-cyan-300 border-cyan-700 font-bold';
+
+				return `
+					<tr class="hover:bg-slate-800/50 transition">
+						<td class="p-3 font-semibold text-white flex items-center gap-2">
+							<i class="fa-solid fa-circle-user text-slate-400 text-sm"></i>
+							${u.email}
+							${isCurrent ? '<span class="text-[9px] bg-emerald-950 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-800">Vous</span>' : ''}
+						</td>
+						<td class="p-3">
+							<select onchange="updateUserRole('${u.id}', this.value)" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-cyan-500 font-medium">
+								<option value="technician" ${u.role === 'technician' ? 'selected' : ''}>Technicien</option>
+								<option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrateur</option>
+								<option value="superadmin" ${u.role === 'superadmin' ? 'selected' : ''}>Super-Admin</option>
+							</select>
+						</td>
+						<td class="p-3 text-slate-400 font-mono text-xs">
+							${u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '-'}
+						</td>
+						<td class="p-3 text-right">
+							${!isCurrent ? `
+							<button onclick="deleteUserProfile('${u.id}')" title="Supprimer l'accès" class="p-1.5 text-slate-400 hover:text-rose-400 transition">
+								<i class="fa-solid fa-trash-can text-sm"></i>
+							</button>` : '<span class="text-slate-600 text-xs italic">Actif</span>'}
+						</td>
+					</tr>
+				`;
+			}).join('');
+		}
+
+		// 2. Création d'un nouvel utilisateur
+		async function handleCreateUser(e) {
+			e.preventDefault();
+			const email = document.getElementById('new-user-email').value.trim();
+			const password = document.getElementById('new-user-pwd').value;
+			const role = document.getElementById('new-user-role').value;
+
+			// Inscription du compte
+			const { data, error } = await _supabase.auth.signUp({
+				email: email,
+				password: password,
+				options: {
+					data: { role: role }
+				}
+			});
+
+			if (error) {
+				alert('Erreur lors de la création : ' + error.message);
+			} else {
+				// Enregistrement immédiat dans la table profiles
+				if (data.user) {
+					await _supabase.from('profiles').upsert([{
+						id: data.user.id,
+						email: email,
+						role: role
+					}]);
+				}
+				alert(`✅ Utilisateur ${email} créé avec le rôle ${role.toUpperCase()} !`);
+				document.getElementById('new-user-email').value = '';
+				document.getElementById('new-user-pwd').value = '';
+				await fetchUsersList();
+			}
+		}
+
+		// 3. Changement de rôle en un clic
+		async function updateUserRole(userId, newRole) {
+			const { error } = await _supabase
+				.from('profiles')
+				.update({ role: newRole })
+				.eq('id', userId);
+
+			if (error) {
+				alert('Erreur lors du changement de rôle : ' + error.message);
+			} else {
+				alert('✅ Rôle mis à jour avec succès !');
+				await fetchUsersList();
+			}
+		}
+
+		// 4. Suppression / Révocation d'un profil
+		async function deleteUserProfile(userId) {
+			if (confirm('⚠️ Voulez-vous supprimer les droits et le profil de cet utilisateur ?')) {
+				const { error } = await _supabase.from('profiles').delete().eq('id', userId);
+				if (error) {
+					alert('Erreur : ' + error.message);
+				} else {
+					alert('✅ Utilisateur retiré de la liste !');
+					await fetchUsersList();
+				}
+			}
+		}
 
      async function fetchUserProfile() {
 			const { data } = await _supabase.from('profiles').select('role').eq('id', currentUser.id).single();
@@ -765,8 +936,15 @@
             }
             if (tabName === 'admin') renderAdminTemplatesGrid();
             if (tabName === 'archive') fetchCloudHistory();
-            lucide.createIcons();
-        }
+			
+			lucide.createIcons();
+			if (tabName === 'admin') {
+				renderAdminTemplatesGrid();
+				fetchUsersList(); // 👈 Charge automatiquement la liste des collaborateurs
+			}
+			if (tabName === 'archive') fetchCloudHistory();
+			lucide.createIcons();
+		}
 
         // --- FORM FILLING LOGIC ---
         function renderTemplateSelectOptions() {
