@@ -403,6 +403,8 @@
         let savedForms = [];
         let editingTemplateId = null;
         let currentFormState = { templateId: '', title: '', sections: [] };
+		
+		let currentLoadedFicheId = null; // 👈 Mémorise l'ID de la fiche active
 
         let canvasTech, ctxTech, canvasClient, ctxClient;
 
@@ -623,6 +625,7 @@
 		function mergeTemplateWithSavedData(templateSections, savedSections) {
 			if (!savedSections || savedSections.length === 0) return templateSections;
 
+			// Création d'un dictionnaire des réponses déjà renseignées (clé = titre rubrique + libellé point)
 			const savedMap = new Map();
 			savedSections.forEach(sec => {
 				(sec.items || []).forEach(item => {
@@ -631,6 +634,7 @@
 				});
 			});
 
+			// On reconstruit la structure à partir du NOUVEAU modèle en réinjectant les saisies existantes
 			return templateSections.map(sec => ({
 				title: sec.title,
 				items: (sec.items || []).map(item => {
@@ -638,6 +642,7 @@
 					const existing = savedMap.get(key);
 
 					if (existing) {
+						// Point existant : on conserve toutes les données saisies
 						return {
 							label: item.label,
 							type: item.type || 'status',
@@ -651,6 +656,7 @@
 							attachments: existing.attachments || existing.photos?.map(p => ({ type: 'image', data: p, name: 'photo.jpg' })) || []
 						};
 					} else {
+						// Nouveau point ajouté au modèle : initialisé prêt à être contrôlé
 						return {
 							label: item.label,
 							type: item.type || 'status',
@@ -725,7 +731,10 @@
         }
 
         function loadSelectedTemplateToForm(forcedId = null) {
-            const tplId = forcedId || document.getElementById('fill-template-select').value;
+			// 👇 On réinitialise l'identifiant pour démarrer une nouvelle fiche propre
+			currentLoadedFicheId = null;
+
+			const tplId = forcedId || document.getElementById('fill-template-select').value;
             const template = templates.find(t => t.id === tplId);
             if (!template) return;
 
@@ -946,25 +955,43 @@
             };
         }
 
-        async function saveActiveFormToCloud() {
-            const meta = getActiveMeta();
-            const record = {
-                id: Date.now(),
-                chantier: meta.project,
-                client: meta.client,
-                tech: meta.tech,
-                date: meta.date,
-                template_name: currentFormState.title,
-                data: { meta, sections: currentFormState.sections, sigTech: canvasTech.toDataURL(), sigClient: canvasClient.toDataURL() }
-            };
+        // --- SAUVEGARDE INTELLIGENTE (CRÉATION OU MISE À JOUR SANS DOUBLON) ---
+		async function saveActiveFormToCloud() {
+			const meta = getActiveMeta();
 
-            const { error } = await _supabase.from('gtb_fiches').insert([record]);
-            if (error) {
-                alert('Erreur sauvegarde cloud : ' + error.message);
-            } else {
-                alert('✅ Fiche synchronisée dans Supabase Cloud avec succès ! ☁️');
-            }
-        }
+			// Si la fiche a déjà un identifiant, on le réutilise pour mettre à jour la ligne
+			const isExisting = !!currentLoadedFicheId;
+			const recordId = currentLoadedFicheId || Date.now();
+
+			const record = {
+				id: recordId,
+				chantier: meta.project,
+				client: meta.client,
+				tech: meta.tech,
+				date: meta.date,
+				template_name: currentFormState.title,
+				data: { 
+					meta, 
+					sections: currentFormState.sections, 
+					sigTech: canvasTech.toDataURL(), 
+					sigClient: canvasClient.toDataURL() 
+				}
+			};
+
+			// Utilisation de .upsert() pour mettre à jour ou créer si nouveau
+			const { error } = await _supabase.from('gtb_fiches').upsert([record]);
+			
+			if (error) {
+				alert('Erreur sauvegarde cloud : ' + error.message);
+			} else {
+				currentLoadedFicheId = recordId; // Verrouille l'ID pour les sauvegardes suivantes
+				if (isExisting) {
+					alert('✅ Fiche mise à jour dans le Cloud avec succès ! ☁️');
+				} else {
+					alert('✅ Nouvelle fiche enregistrée dans le Cloud avec succès ! ☁️');
+				}
+			}
+		}
         
         async function deleteCloudFiche(fId) {
             if (confirm('⚠️ Êtes-vous sûr de vouloir supprimer définitivement cette fiche de contrôle du Cloud ?')) {
@@ -1014,10 +1041,13 @@
         }
 
         async function loadArchiveToForm(fId) {
-            const { data, error } = await _supabase.from('gtb_fiches').select('*').eq('id', fId).single();
-            if (!data || !data.data) return;
+			const { data, error } = await _supabase.from('gtb_fiches').select('*').eq('id', fId).single();
+			if (!data || !data.data) return;
 
-            const meta = data.data.meta || {};
+			// 👇 Mémorise que nous travaillons sur CETTE fiche existante
+			currentLoadedFicheId = fId;
+
+			const meta = data.data.meta || {};
 
             document.getElementById('meta-project').value = meta.project || '';
             document.getElementById('meta-code').value = meta.code || '';
@@ -1034,8 +1064,10 @@
             const currentTpl = templates.find(t => t.title === data.template_name || t.name === data.template_name);
 
 			if (currentTpl && currentTpl.sections) {
+				// Fusionne avec le modèle officiel le plus récent
 				currentFormState.sections = mergeTemplateWithSavedData(currentTpl.sections, data.data.sections);
 			} else {
+				// Secours si le modèle d'origine a été supprimé
 				currentFormState.sections = data.data.sections || [];
 			}
 
@@ -1055,6 +1087,8 @@
         }
 
         // --- ADMIN TEMPLATE BUILDER ---
+		
+		// --- DÉPLACEMENT ET RÉORGANISATION DES RUBRIQUES & POINTS ---
 		function moveSection(index, direction) {
 			const targetIndex = index + direction;
 			if (targetIndex < 0 || targetIndex >= modalSectionsState.length) return;
@@ -1130,6 +1164,7 @@
 
 			return `
 				<div class="bg-slate-900 border border-slate-700 rounded-lg p-4 space-y-3 shadow-md">
+					<!-- En-tête de la Rubrique avec flèches de tri -->
 					<div class="flex items-center justify-between gap-2">
 						<span class="text-xs font-bold text-cyan-400 bg-slate-800 px-2 py-1 rounded">#${sIdx + 1}</span>
 						<input type="text" value="${sec.title}" 
@@ -1137,18 +1172,22 @@
 							class="font-bold bg-slate-800 border border-slate-600 rounded px-2.5 py-1 text-xs text-white flex-1 focus:ring-1 focus:ring-cyan-500 outline-none">
 						
 						<div class="inline-flex items-center space-x-1">
+							<!-- Monter la rubrique -->
 							<button type="button" onclick="moveSection(${sIdx}, -1)" ${isFirstSec ? 'disabled class="text-slate-600 p-1 cursor-not-allowed"' : 'class="text-slate-300 hover:text-cyan-400 p-1"'} title="Monter la rubrique">
 								<i class="fa-solid fa-arrow-up text-xs"></i>
 							</button>
+							<!-- Descendre la rubrique -->
 							<button type="button" onclick="moveSection(${sIdx}, 1)" ${isLastSec ? 'disabled class="text-slate-600 p-1 cursor-not-allowed"' : 'class="text-slate-300 hover:text-cyan-400 p-1"'} title="Descendre la rubrique">
 								<i class="fa-solid fa-arrow-down text-xs"></i>
 							</button>
+							<!-- Supprimer la rubrique -->
 							<button type="button" onclick="modalSectionsState.splice(${sIdx}, 1); renderModalSectionsBuilder();" class="text-rose-400 hover:text-rose-300 text-xs p-1 ml-1" title="Supprimer la rubrique">
 								<i class="fa-solid fa-trash"></i>
 							</button>
 						</div>
 					</div>
 
+					<!-- Liste des Points de contrôle avec flèches de tri -->
 					<div class="space-y-2 pl-3 border-l-2 border-slate-700">
 						${sec.items.map((item, iIdx) => {
 							const isFirstItem = iIdx === 0;
@@ -1185,11 +1224,12 @@
 
         function addModalSection() { modalSectionsState.push({ title: 'Nouvelle Rubrique', items: [{ label: 'Point', type: 'status' }] }); renderModalSectionsBuilder(); }
 
-        // --- MOTEUR DE GÉNÉRATION PDF OPTIMISÉ & LÉGER ---
+        // --- MOTEUR DE GÉNÉRATION PDF INTELLIGENT SANS COUPURE ---
         async function generatePDF() {
             const meta = getActiveMeta();
             const pdfContainer = document.getElementById('pdf-render-area');
 
+            // 1. Calcul des statistiques
             let total = 0, ok = 0, nok = 0, na = 0;
             currentFormState.sections.forEach(sec => sec.items.forEach(item => {
                 total++;
@@ -1204,44 +1244,25 @@
                 ? '<img src="' + companySettings.logo + '" style="max-height: 40px; max-width: 140px; object-fit: contain; margin-bottom: 4px;">' 
                 : '';
 
+            // 2. Pièces jointes (Photos & PDF)
             let photosList = [];
             let pdfDocsToMerge = [];
 
-            const compressImageIfNeeded = (dataUrl) => {
-                return new Promise((resolve) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const MAX_DIM = 1000;
-                        let w = img.width, h = img.height;
-                        if (w > MAX_DIM || h > MAX_DIM) {
-                            if (w > h) { h = (h * MAX_DIM) / w; w = MAX_DIM; }
-                            else { w = (w * MAX_DIM) / h; h = MAX_DIM; }
-                        }
-                        canvas.width = w; canvas.height = h;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, w, h);
-                        resolve(canvas.toDataURL('image/jpeg', 0.8));
-                    };
-                    img.src = dataUrl;
-                });
-            };
-
-            for (const sec of currentFormState.sections) {
-                for (const item of sec.items) {
+            currentFormState.sections.forEach(sec => {
+                sec.items.forEach(item => {
                     if (item.attachments && item.attachments.length > 0) {
-                        for (const att of item.attachments) {
+                        item.attachments.forEach(att => {
                             if (att.type === 'image') {
-                                const optimizedPhoto = await compressImageIfNeeded(att.data);
-                                photosList.push({ label: item.label, section: sec.title, photo: optimizedPhoto });
+                                photosList.push({ label: item.label, section: sec.title, photo: att.data });
                             } else if (att.type === 'pdf') {
                                 pdfDocsToMerge.push(att.data);
                             }
-                        }
+                        });
                     }
-                }
-            }
+                });
+            });
 
+            // 3. Fonction pour générer le tableau HTML d'une rubrique (compact)
             function renderSectionTableHtml(sec) {
                 return `
                     <div style="margin-bottom: 8px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; background: #ffffff;">
@@ -1283,6 +1304,7 @@
                 `;
             }
 
+            // 4. Bloc Observations Générales & Signatures
             const generalObsHtml = meta.observations ? `
                 <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 3px solid ${brandColor}; border-radius: 4px; padding: 6px 10px; margin-top: 8px; margin-bottom: 6px;">
                     <div style="font-size: 9px; font-weight: 700; color: #0f172a; text-transform: uppercase; margin-bottom: 2px;">
@@ -1312,44 +1334,50 @@
                 </div>
             `;
 
-            const PAGE1_MAX_HEIGHT = 560;
-            const OTHER_PAGE_MAX = 680;
+                // 5. Calcul précis tenant compte des observations multi-lignes et des signatures
+				const PAGE1_MAX_HEIGHT = 560;     // Hauteur max sécurisée pour Page 1 (avec Cartouche + KPI)
+				const OTHER_PAGE_MAX = 680;       // Hauteur max sécurisée pour Page 2+ (avec signatures)
 
-            let pagesContent = [];
-            let currentPageSections = [];
-            let currentAccumulatedHeight = 0;
+				let pagesContent = [];
+				let currentPageSections = [];
+				let currentAccumulatedHeight = 0;
 
-            function getSectionHeight(sec) {
-                let h = 45;
-                sec.items.forEach(item => {
-                    const commentLen = (item.comment || '').length;
-                    const labelLen = (item.label || '').length;
-                    const lines = Math.max(Math.ceil(commentLen / 30), Math.ceil(labelLen / 40), 1);
-                    h += 16 + (lines * 14);
-                });
-                return h;
-            }
+				// Calcul dynamique de la hauteur d'une rubrique selon la longueur des textes
+				function getSectionHeight(sec) {
+					let h = 45; // Hauteur du bandeau de titre + en-tête de colonnes
+					sec.items.forEach(item => {
+						const commentLen = (item.comment || '').length;
+						const labelLen = (item.label || '').length;
+						// Calcule le nombre de lignes réelles si le texte s'enroule
+						const lines = Math.max(Math.ceil(commentLen / 30), Math.ceil(labelLen / 40), 1);
+						h += 16 + (lines * 14); // 16px de base + 14px par ligne de texte supplémentaire
+					});
+					return h;
+				}
 
-            currentFormState.sections.forEach(sec => {
-                const secHeight = getSectionHeight(sec);
-                const isFirstPage = pagesContent.length === 0;
-                const currentLimit = isFirstPage ? PAGE1_MAX_HEIGHT : OTHER_PAGE_MAX;
+				currentFormState.sections.forEach(sec => {
+					const secHeight = getSectionHeight(sec);
+					const isFirstPage = pagesContent.length === 0;
+					const currentLimit = isFirstPage ? PAGE1_MAX_HEIGHT : OTHER_PAGE_MAX;
 
-                if (currentAccumulatedHeight + secHeight > currentLimit && currentPageSections.length > 0) {
-                    pagesContent.push(currentPageSections);
-                    currentPageSections = [sec];
-                    currentAccumulatedHeight = secHeight;
-                } else {
-                    currentPageSections.push(sec);
-                    currentAccumulatedHeight += secHeight;
-                }
-            });
+					// Si la rubrique ne rentre pas complètement, on la bascule proprement sur la page suivante
+					if (currentAccumulatedHeight + secHeight > currentLimit && currentPageSections.length > 0) {
+						pagesContent.push(currentPageSections);
+						currentPageSections = [sec];
+						currentAccumulatedHeight = secHeight;
+					} else {
+						currentPageSections.push(sec);
+						currentAccumulatedHeight += secHeight;
+					}
+				});
 
-            if (currentPageSections.length > 0) {
-                pagesContent.push(currentPageSections);
-            }
+				if (currentPageSections.length > 0) {
+					pagesContent.push(currentPageSections);
+				}
 
+            // 6. Construction des conteneurs HTML de chaque page A4
             let fullHtml = '';
+
             pagesContent.forEach((secList, pIndex) => {
                 const isFirstPage = pIndex === 0;
                 const isLastInspectionPage = pIndex === pagesContent.length - 1;
@@ -1357,6 +1385,7 @@
                 fullHtml += `
                     <div id="pdf-page-block-${pIndex}" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; min-height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 20px;">
                         <div>
+                            <!-- EN-TÊTE -->
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid ${brandColor}; padding-bottom: 12px; margin-bottom: 14px;">
                                 <div>
                                     ${logoImgTag}
@@ -1370,6 +1399,7 @@
                             </div>
 
                             ${isFirstPage ? `
+                            <!-- CARTOUCHE CHANTIER (Page 1 uniquement) -->
                             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 14px;">
                                 <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
                                     <tr>
@@ -1393,6 +1423,7 @@
                                 </table>
                             </div>
 
+                            <!-- SYNTHÈSE STATS (Page 1 uniquement) -->
                             <div style="display: flex; gap: 8px; margin-bottom: 14px;">
                                 <div style="flex: 1; background: #f1f5f9; padding: 6px; border-radius: 4px; text-align: center; border-left: 3px solid #64748b;">
                                     <div style="font-size: 8px; color: #64748b; font-weight: 600; text-transform: uppercase;">Points Totaux</div>
@@ -1417,11 +1448,13 @@
                             </div>
                             `}
 
+                            <!-- RUBRIQUES ATTRIBUÉES À CETTE PAGE -->
                             <div>
                                 ${secList.map(sec => renderSectionTableHtml(sec)).join('')}
                             </div>
                         </div>
 
+                        <!-- BAS DE PAGE -->
                         <div>
                             ${isLastInspectionPage ? signaturesHtml : ''}
                             <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px; margin-top: 8px;">
@@ -1432,16 +1465,19 @@
                 `;
             });
 
+            // 7. Page Annexe Photos (GRANDE TAILLE DYNAMIQUE)
             let photosHtml = '';
             if (photosList.length > 0) {
                 const isSinglePhoto = photosList.length === 1;
                 const isTwoPhotos = photosList.length === 2;
+
                 const gridCols = isSinglePhoto || isTwoPhotos ? '1fr' : 'repeat(2, 1fr)';
                 const photoHeight = isSinglePhoto ? '460px' : (isTwoPhotos ? '320px' : '230px');
 
                 photosHtml = `
                     <div id="pdf-photos-page" style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; padding: 24px; background: #ffffff; width: 750px; min-height: 1040px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
                         <div>
+                            <!-- EN-TÊTE ANNEXES -->
                             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid ${brandColor}; padding-bottom: 10px; margin-bottom: 16px;">
                                 <div>
                                     <div style="font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase;">ANNEXES • CONSTATS PHOTOGRAPHIQUES</div>
@@ -1452,6 +1488,7 @@
                                 </div>
                             </div>
 
+                            <!-- GRILLE DE PHOTOS AGRANDIE -->
                             <div style="display: grid; grid-template-columns: ${gridCols}; gap: 14px;">
                                 ${photosList.map((p, pIdx) => `
                                     <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #f8fafc; display: flex; flex-direction: column;">
@@ -1469,6 +1506,7 @@
                             </div>
                         </div>
 
+                        <!-- PIED DE PAGE -->
                         <div style="text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px;">
                             EIFFAGE ENERGIE SYSTEMES • Annexe Photographique
                         </div>
@@ -1476,35 +1514,34 @@
                 `;
             }
 
+            // 8. Injection et Capture PDF page par page
             pdfContainer.innerHTML = fullHtml + photosHtml;
 
             const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({
-                orientation: 'p',
-                unit: 'mm',
-                format: 'a4',
-                compress: true
-            });
+            const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
 
+            // Rendu de chaque page de contrôle
             for (let i = 0; i < pagesContent.length; i++) {
                 if (i > 0) pdf.addPage();
                 const pageEl = document.getElementById(`pdf-page-block-${i}`);
                 const canvas = await html2canvas(pageEl, { scale: 2, useCORS: true });
-                const imgData = canvas.toDataURL('image/jpeg', 0.85); 
+                const imgData = canvas.toDataURL('image/png');
                 const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
             }
 
+            // Rendu de l'annexe photos
             if (photosList.length > 0) {
                 pdf.addPage();
                 const photosEl = document.getElementById('pdf-photos-page');
                 const canvasPhotos = await html2canvas(photosEl, { scale: 2, useCORS: true });
-                const imgDataPhotos = canvasPhotos.toDataURL('image/jpeg', 0.85);
+                const imgDataPhotos = canvasPhotos.toDataURL('image/png');
                 const photoHeight = (canvasPhotos.height * pdfWidth) / canvasPhotos.width;
-                pdf.addImage(imgDataPhotos, 'JPEG', 0, 0, pdfWidth, photoHeight, undefined, 'FAST');
+                pdf.addImage(imgDataPhotos, 'PNG', 0, 0, pdfWidth, photoHeight);
             }
 
+            // 9. Fusion des PDF joints
             const basePdfBytes = pdf.output('arraybuffer');
             let finalPdfBytes = basePdfBytes;
 
@@ -1533,6 +1570,7 @@
                 finalPdfBytes = await mergedDoc.save();
             }
 
+            // 10. Téléchargement du fichier final unifié
             const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
