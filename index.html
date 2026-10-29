@@ -251,20 +251,58 @@
                 </div>
             </section>
 
-            <!-- TAB 2: HISTORIQUE / ARCHIVE CLOUD -->
-            <section id="tab-archive" class="hidden space-y-6">
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-4">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div>
-                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                                <i class="fa-solid fa-folder-open text-cyan-400"></i> Historique des Fiches Cloud Centralisées
-                            </h2>
-                            <p class="text-xs text-slate-400">Consultez ou ré-ouvrez les contrôles synchronisés depuis le terrain.</p>
-                        </div>
-                    </div>
+            <!-- TAB 2: HISTORIQUE / ARCHIVE CLOUD AVEC FILTRES -->
+			<section id="tab-archive" class="hidden space-y-6">
+				<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-4">
+					
+					<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+						<div>
+							<h2 class="text-xl font-bold text-white flex items-center gap-2">
+								<i class="fa-solid fa-folder-open text-cyan-400"></i> Historique des Fiches Cloud Centralisées
+							</h2>
+							<p class="text-xs text-slate-400">Consultez, filtrez ou ré-ouvrez les contrôles synchronisés depuis le terrain.</p>
+						</div>
+						<button onclick="fetchCloudHistory()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition flex items-center gap-1.5">
+							<i class="fa-solid fa-rotate"></i> Actualiser
+						</button>
+					</div>
 
-                    <div class="overflow-x-auto border border-slate-700 rounded-lg">
-                        <table class="w-full text-left text-xs text-slate-300">
+					<!-- 🔍 BARRE DE FILTRES MULTI-CRITÈRES -->
+					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-900/80 p-3 rounded-lg border border-slate-700">
+						<!-- Recherche texte globale -->
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Recherche (Projet, Affaire, Tag)</label>
+							<input type="text" id="filter-search" oninput="applyArchiveFilters()" placeholder="ex: SANOFI, CTA-01..." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
+						</div>
+
+						<!-- Filtre Modèle -->
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Modèle de fiche</label>
+							<select id="filter-template" onchange="applyArchiveFilters()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
+								<option value="">Tous les modèles</option>
+							</select>
+						</div>
+
+						<!-- Filtre Technicien -->
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Technicien</label>
+							<select id="filter-tech" onchange="applyArchiveFilters()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
+								<option value="">Tous les techniciens</option>
+							</select>
+						</div>
+
+						<!-- Filtre Admin Référent -->
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Admin Référent</label>
+							<select id="filter-admin" onchange="applyArchiveFilters()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
+								<option value="">Tous les admins</option>
+							</select>
+						</div>
+					</div>
+
+					<!-- TABLEAU DES FICHES -->
+					<div class="overflow-x-auto border border-slate-700 rounded-lg">
+						<table class="w-full text-left text-xs text-slate-300">
 							<thead class="bg-slate-900/90 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-700">
 								<tr>
 									<th class="p-3">Projet / Client</th>
@@ -272,16 +310,17 @@
 									<th class="p-3 text-cyan-400">Équipement / Repère</th>
 									<th class="p-3">Technicien</th>
 									<th class="p-3">Date</th>
+									<th class="p-3 text-amber-400 font-semibold">Admin Référent</th>
 									<th class="p-3 text-right">Actions</th>
 								</tr>
 							</thead>
 							<tbody id="archive-table-body" class="divide-y divide-slate-700/50">
-								<tr><td colspan="6" class="text-center py-6 text-slate-500">Chargement des fiches...</td></tr>
+								<tr><td colspan="7" class="text-center py-6 text-slate-500">Chargement des fiches...</td></tr>
 							</tbody>
 						</table>
-                    </div>
-                </div>
-            </section>
+					</div>
+				</div>
+			</section>
 
             <!-- TAB 3: CONSOLE D'ADMINISTRATION -->
             <section id="tab-admin" class="hidden space-y-6">
@@ -960,15 +999,17 @@
             };
         }
 
-        // --- SAUVEGARDE INTELLIGENTE (CRÉATION OU MISE À JOUR SANS DOUBLON) ---
+        let rawCloudFiches = []; // Mémorise les données reçues pour filtrer instantanément
+
+		// --- SAUVEGARDE DYNAMIQUE SANS VALEUR EN DUR ---
 		async function saveActiveFormToCloud() {
 			const meta = getActiveMeta();
 			const isExisting = !!currentLoadedFicheId;
 			const recordId = currentLoadedFicheId || Date.now();
 
-			// Recherche de l'administrateur créateur du modèle
+			// Récupération dynamique de l'Admin créateur du modèle
 			const currentTpl = templates.find(t => t.id === currentFormState.templateId || t.title === currentFormState.title);
-			const templateAuthor = currentTpl ? (currentTpl.author_email || 'thomas.heuze@eiffage.com') : 'thomas.heuze@eiffage.com';
+			const templateAuthor = currentTpl?.author_email || currentUser?.email || 'Non assigné';
 
 			const record = {
 				id: recordId,
@@ -976,7 +1017,7 @@
 				author_email: currentUser ? currentUser.email : meta.tech,
 				template_id: currentFormState.templateId,
 				template_name: currentFormState.title,
-				template_author: templateAuthor, // 👈 Rattache la fiche à l'Admin créateur du modèle
+				template_author: templateAuthor, // 👈 Dynamique selon l'utilisateur
 				chantier: meta.project,
 				client: meta.client,
 				tech: meta.tech,
@@ -1011,53 +1052,80 @@
             }
         }
 
-        async function fetchCloudHistory() {
+        // --- RÉCUPÉRATION ET ALIMENTATION DES FILTRES ---
+		async function fetchCloudHistory() {
 			const tbody = document.getElementById('archive-table-body');
 			const isSuperAdmin = userRole === 'superadmin';
-			const isAdmin = userRole === 'admin' || isSuperAdmin;
 
-			// 1. Récupération des fiches
 			const { data, error } = await _supabase
 				.from('gtb_fiches')
 				.select('*')
 				.order('created_at', { ascending: false });
 
-			// 2. Filtrage intelligent selon le profil
-			let filteredData = data || [];
+			// Filtrage de base selon le rôle
+			let baseList = data || [];
 			if (!isSuperAdmin) {
 				if (userRole === 'admin') {
-					// L'administrateur ne voit QUE les fiches issues de ses propres modèles
-					filteredData = filteredData.filter(f => f.template_author === currentUser?.email || !f.template_author);
+					baseList = baseList.filter(f => f.template_author === currentUser?.email || !f.template_author);
 				} else {
-					// Le technicien standard ne voit que les fiches qu'il a créées
-					filteredData = filteredData.filter(f => f.user_id === currentUser?.id || f.author_email === currentUser?.email);
+					baseList = baseList.filter(f => f.user_id === currentUser?.id || f.author_email === currentUser?.email);
 				}
 			}
 
-			// 3. Mise à jour de l'en-tête du tableau
-			const thead = document.querySelector('#tab-archive thead tr');
-			if (thead) {
-				thead.innerHTML = `
-					<th class="p-3">Projet / Client</th>
-					<th class="p-3">Modèle de Fiche</th>
-					<th class="p-3 text-cyan-400">Équipement / Repère</th>
-					<th class="p-3">Technicien</th>
-					<th class="p-3">Date</th>
-					<th class="p-3 text-amber-400 font-semibold">Admin Référent</th>
-					<th class="p-3 text-right">Actions</th>
-				`;
-			}
+			rawCloudFiches = baseList;
+			populateFilterDropdowns();
+			applyArchiveFilters();
+		}
 
-			if (!filteredData || filteredData.length === 0) {
-				tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500">Aucune fiche trouvée pour votre profil.</td></tr>`;
+		// Remplissage automatique des listes déroulantes de filtres
+		function populateFilterDropdowns() {
+			const tplSelect = document.getElementById('filter-template');
+			const techSelect = document.getElementById('filter-tech');
+			const adminSelect = document.getElementById('filter-admin');
+
+			if (!tplSelect || !techSelect || !adminSelect) return;
+
+			const tpls = [...new Set(rawCloudFiches.map(f => f.template_name).filter(Boolean))];
+			const techs = [...new Set(rawCloudFiches.map(f => f.tech).filter(Boolean))];
+			const admins = [...new Set(rawCloudFiches.map(f => f.template_author || currentUser?.email).filter(Boolean))];
+
+			tplSelect.innerHTML = '<option value="">Tous les modèles</option>' + tpls.map(t => `<option value="${t}">${t}</option>`).join('');
+			techSelect.innerHTML = '<option value="">Tous les techniciens</option>' + techs.map(t => `<option value="${t}">${t}</option>`).join('');
+			adminSelect.innerHTML = '<option value="">Tous les admins</option>' + admins.map(a => `<option value="${a}">${a}</option>`).join('');
+		}
+
+		// Application des filtres en direct
+		function applyArchiveFilters() {
+			const tbody = document.getElementById('archive-table-body');
+			const searchVal = (document.getElementById('filter-search')?.value || '').toLowerCase();
+			const tplVal = document.getElementById('filter-template')?.value || '';
+			const techVal = document.getElementById('filter-tech')?.value || '';
+			const adminVal = document.getElementById('filter-admin')?.value || '';
+
+			const filtered = rawCloudFiches.filter(f => {
+				const textMatch = !searchVal || 
+					(f.chantier && f.chantier.toLowerCase().includes(searchVal)) ||
+					(f.client && f.client.toLowerCase().includes(searchVal)) ||
+					(f.data?.meta?.code && f.data.meta.code.toLowerCase().includes(searchVal)) ||
+					(f.data?.meta?.lot && f.data.meta.lot.toLowerCase().includes(searchVal));
+
+				const tplMatch = !tplVal || f.template_name === tplVal;
+				const techMatch = !techVal || f.tech === techVal;
+				const adminAuthor = f.template_author || currentUser?.email || 'Non assigné';
+				const adminMatch = !adminVal || adminAuthor === adminVal;
+
+				return textMatch && tplMatch && techMatch && adminMatch;
+			});
+
+			if (filtered.length === 0) {
+				tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500">Aucune fiche ne correspond aux critères de recherche.</td></tr>`;
 				return;
 			}
 
-			// 4. Rendu des lignes
-			tbody.innerHTML = filteredData.map(f => {
+			tbody.innerHTML = filtered.map(f => {
 				const codeAffaire = f.data?.meta?.code ? `<span class="text-cyan-400 font-mono text-[10px]"> [${f.data.meta.code}]</span>` : '';
 				const repereLot = f.data?.meta?.lot || '-';
-				const adminReferent = f.template_author || 'thomas.heuze@eiffage.com';
+				const adminReferent = f.template_author || currentUser?.email || 'Non assigné';
 
 				return `
 					<tr class="hover:bg-slate-800/50 transition">
@@ -1074,7 +1142,6 @@
 						<td class="p-3 text-slate-300">${f.tech}</td>
 						<td class="p-3 text-slate-400 font-mono text-xs">${f.date}</td>
 						
-						<!-- Colonne Admin Référent du Modèle -->
 						<td class="p-3">
 							<span class="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-700/60 text-amber-300 font-mono text-[11px] flex items-center gap-1 w-fit">
 								<i class="fa-solid fa-user-gear text-[10px]"></i> ${adminReferent}
