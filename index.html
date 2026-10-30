@@ -616,22 +616,24 @@
 
 		// 2. Définition et enregistrement du nouveau mot de passe
 		async function handleUpdateNewPassword(e) {
-			e.preventDefault();
-			const newPassword = document.getElementById('new-password-val').value;
+		e.preventDefault();
+		const newPassword = document.getElementById('new-password-val').value;
 
-			const { data, error } = await _supabase.auth.updateUser({
-				password: newPassword
-			});
+		const { data, error } = await _supabase.auth.updateUser({
+			password: newPassword
+		});
 
-			if (error) {
-				document.getElementById('auth-error').innerText = "Erreur : " + error.message;
-			} else {
-				alert('✅ Mot de passe enregistré avec succès ! Connexion en cours...');
-				currentUser = data.user;
-				await fetchUserProfile();
-				showAppScreen();
-			}
+		if (error) {
+			document.getElementById('auth-error').innerText = "Erreur : " + error.message;
+		} else {
+			alert('✅ Votre mot de passe a été enregistré avec succès ! Bienvenue.');
+			// Nettoie l'URL du jeton temporaire
+			window.history.replaceState(null, null, window.location.pathname);
+			currentUser = data.user;
+			await fetchUserProfile();
+			showAppScreen();
 		}
+}
 
 		// 3. Invitation par e-mail d'un nouveau collaborateur depuis l'Admin
 		async function handleInviteUser(e) {
