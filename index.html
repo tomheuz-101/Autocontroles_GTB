@@ -530,27 +530,42 @@
 
         let canvasTech, ctxTech, canvasClient, ctxClient;
 
-       window.addEventListener('DOMContentLoaded', async () => {
-		initCanvases();
-		lucide.createIcons();
-		document.getElementById('meta-date').valueAsDate = new Date();
+      window.addEventListener('DOMContentLoaded', async () => {
+    initCanvases();
+    lucide.createIcons();
+    document.getElementById('meta-date').valueAsDate = new Date();
 
-		// 👇 Écoute si l'utilisateur arrive via un lien d'e-mail de réinitialisation
-		_supabase.auth.onAuthStateChange(async (event, session) => {
-			if (event === 'PASSWORD_RECOVERY') {
-				showAuthView('reset');
-			}
-		});
+    // 1. Détection si l'utilisateur arrive via un lien d'e-mail (création / réinitialisation de mot de passe)
+    const isRecoveryMode = window.location.hash.includes('type=recovery');
 
-		const { data: { session } } = await _supabase.auth.getSession();
-		if (session) {
-			currentUser = session.user;
-			await fetchUserProfile();
-			showAppScreen();
-		} else {
-			showAuthScreen();
-		}
-	});
+    // 2. Écoute des événements d'authentification Supabase
+    _supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'PASSWORD_RECOVERY' || isRecoveryMode) {
+            currentUser = session?.user || null;
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('app-screen').classList.add('hidden');
+            showAuthView('reset'); // 👈 Force l'affichage de la saisie du nouveau mot de passe
+        }
+    });
+
+    // Si on arrive via le lien d'e-mail, on bloque la connexion directe
+    if (isRecoveryMode) {
+        document.getElementById('auth-screen').classList.remove('hidden');
+        document.getElementById('app-screen').classList.add('hidden');
+        showAuthView('reset');
+        return;
+    }
+
+    // 3. Connexion classique si session déjà active
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (session) {
+        currentUser = session.user;
+        await fetchUserProfile();
+        showAppScreen();
+    } else {
+        showAuthScreen();
+    }
+});
 
         function showAuthScreen() {
             document.getElementById('auth-screen').classList.remove('hidden');
