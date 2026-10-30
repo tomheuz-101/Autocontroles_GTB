@@ -807,13 +807,18 @@
 		}
 
 		// 4. Suppression / Révocation d'un profil
+		// --- SUPPRESSION TOTALE ET DÉFINITIVE D'UN UTILISATEUR ---
 		async function deleteUserProfile(userId) {
-			if (confirm('⚠️ Voulez-vous supprimer les droits et le profil de cet utilisateur ?')) {
-				const { error } = await _supabase.from('profiles').delete().eq('id', userId);
+			if (confirm('⚠️ Voulez-vous supprimer définitivement ce compte et son accès ?')) {
+				// Appel de la fonction SQL Supabase
+				const { error } = await _supabase.rpc('delete_user_by_admin', { 
+					target_user_id: userId 
+				});
+
 				if (error) {
-					alert('Erreur : ' + error.message);
+					alert('Erreur lors de la suppression : ' + error.message);
 				} else {
-					alert('✅ Utilisateur retiré de la liste !');
+					alert('✅ Compte utilisateur et profil définitivement supprimés !');
 					await fetchUsersList();
 				}
 			}
