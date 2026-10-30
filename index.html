@@ -53,30 +53,59 @@
 </head>
 <body class="h-full flex flex-col font-sans antialiased selection:bg-cyan-500 selection:text-white">
 
-    <!-- ÉCRAN DE CONNEXION SUPABASE -->
-    <div id="auth-screen" class="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md space-y-6">
-            <div class="text-center space-y-2">
-                <div class="h-14 w-auto mx-auto flex items-center justify-center">
-                    <img src="logo.png" alt="Logo" class="h-full object-contain">
-                </div>
-                <h1 class="text-2xl font-black text-white">Gestion des autocontrôles</h1>
-                <p class="text-xs text-slate-400">Connexion sécurisée Supabase Cloud</p>
-            </div>
-            <form onsubmit="handleLogin(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">E-mail professionnel</label>
-                    <input type="email" id="login-email" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="technicien@entreprise.com">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Mot de passe</label>
-                    <input type="password" id="login-password" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="••••••••">
-                </div>
-                <button type="submit" class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-cyan-600/20 transition">Se connecter</button>
-            </form>
-            <p id="auth-error" class="text-xs text-center text-rose-500 font-semibold"></p>
-        </div>
-    </div>
+    <!-- ÉCRAN D'AUTHENTIFICATION & GESTION DES MOTS DE PASSE -->
+		<div id="auth-screen" class="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
+			<div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md space-y-6">
+				
+				<div class="text-center space-y-2">
+					<div class="h-14 w-auto mx-auto flex items-center justify-center">
+						<img src="logo.png" alt="Logo" class="h-full object-contain">
+					</div>
+					<h1 id="auth-title" class="text-2xl font-black text-white">Gestion des autocontrôles</h1>
+					<p id="auth-subtitle" class="text-xs text-slate-400">Connexion sécurisée Supabase Cloud</p>
+				</div>
+
+				<!-- VUE 1 : FORMULAIRE DE CONNEXION -->
+				<form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+					<div>
+						<label class="block text-xs font-bold text-slate-400 uppercase mb-1">E-mail professionnel</label>
+						<input type="email" id="login-email" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="technicien@entreprise.com">
+					</div>
+					<div>
+						<div class="flex justify-between items-center mb-1">
+							<label class="block text-xs font-bold text-slate-400 uppercase">Mot de passe</label>
+							<button type="button" onclick="showAuthView('forgot')" class="text-[11px] text-cyan-400 hover:underline">Mot de passe oublié ?</button>
+						</div>
+						<input type="password" id="login-password" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="••••••••">
+					</div>
+					<button type="submit" class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-cyan-600/20 transition">Se connecter</button>
+				</form>
+
+				<!-- VUE 2 : MOT DE PASSE OUBLIÉ / PREMIÈRE CONNEXION -->
+				<form id="form-forgot" onsubmit="handleForgotPassword(event)" class="space-y-4 hidden">
+					<p class="text-xs text-slate-300">Entrez votre adresse e-mail professionnelle. Vous recevrez un lien pour définir ou réinitialiser votre mot de passe.</p>
+					<div>
+						<label class="block text-xs font-bold text-slate-400 uppercase mb-1">Votre adresse e-mail</label>
+						<input type="email" id="forgot-email" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="technicien@entreprise.com">
+					</div>
+					<button type="submit" class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-cyan-600/20 transition">Envoyer le lien de réinitialisation</button>
+					<button type="button" onclick="showAuthView('login')" class="w-full text-xs text-slate-400 hover:text-white pt-2">← Retour à la connexion</button>
+				</form>
+
+				<!-- VUE 3 : DÉFINITION DU NOUVEAU MOT DE PASSE (Lien reçu par email) -->
+				<form id="form-reset-password" onsubmit="handleUpdateNewPassword(event)" class="space-y-4 hidden">
+					<p class="text-xs text-emerald-400 font-medium">Lien vérifié ! Veuillez saisir votre nouveau mot de passe.</p>
+					<div>
+						<label class="block text-xs font-bold text-slate-400 uppercase mb-1">Nouveau mot de passe</label>
+						<input type="password" id="new-password-val" required minlength="6" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="Au moins 6 caractères">
+					</div>
+					<button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition">Enregistrer et se connecter</button>
+				</form>
+
+				<p id="auth-error" class="text-xs text-center text-rose-500 font-semibold"></p>
+				<p id="auth-success" class="text-xs text-center text-emerald-400 font-semibold"></p>
+			</div>
+		</div>
 
     <!-- APPLICATION PRINCIPALE -->
     <div id="app-screen" class="hidden flex-1 flex flex-col">
@@ -376,62 +405,58 @@
                     </div>
                 </div>
 				
-				<!-- MODULE GESTION DES UTILISATEURS -->
-				<div class="mt-8 bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-6 shadow-xl">
-					<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-700">
-						<div>
-							<h3 class="text-md font-bold text-white flex items-center gap-2">
-								<i class="fa-solid fa-users-gear text-cyan-400"></i> Gestion des Collaborateurs & Droits d'Accès
-							</h3>
-							<p class="text-xs text-slate-400">Ajoutez des techniciens ou des administrateurs et modifiez leurs permissions.</p>
-						</div>
-						<button onclick="fetchUsersList()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition flex items-center gap-1.5">
-							<i class="fa-solid fa-rotate"></i> Actualiser la liste
-						</button>
-					</div>
+				<!-- 👇 MODULE GESTION DES COLLABORATEURS (À PLACER ICI) 👇 -->
+                <div class="mt-8 bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-6 shadow-xl">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-700">
+                        <div>
+                            <h3 class="text-md font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-users-gear text-cyan-400"></i> Gestion des Collaborateurs & Droits d'Accès
+                            </h3>
+                            <p class="text-xs text-slate-400">Invitez des techniciens ou des administrateurs et modifiez leurs permissions.</p>
+                        </div>
+                        <button type="button" onclick="fetchUsersList()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-rotate"></i> Actualiser la liste
+                        </button>
+                    </div>
 
-					<!-- Formulaire d'ajout rapide -->
-					<form onsubmit="handleCreateUser(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-900/90 p-4 rounded-xl border border-slate-700">
-						<div>
-							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">E-mail du collaborateur *</label>
-							<input type="email" id="new-user-email" required placeholder="prenom.nom@eiffage.com" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
-						</div>
-						<div>
-							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mot de passe initial *</label>
-							<input type="password" id="new-user-pwd" required minlength="6" placeholder="Au moins 6 caractères" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
-						</div>
-						<div>
-							<label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Rôle attribué</label>
-							<select id="new-user-role" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none font-medium">
-								<option value="technician">Technicien (Saisie de fiches)</option>
-								<option value="admin">Administrateur (Modèles + ses fiches)</option>
-								<option value="superadmin">Super-Administrateur (Accès Total)</option>
-							</select>
-						</div>
-						<div class="flex items-end">
-							<button type="submit" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition flex justify-center items-center gap-1.5 shadow">
-								<i class="fa-solid fa-user-plus"></i> Créer l'utilisateur
-							</button>
-						</div>
-					</form>
+                    <!-- ✉️ LE FORMULAIRE D'INVITATION EST ICI : -->
+                    <form onsubmit="handleInviteUser(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900/90 p-4 rounded-xl border border-slate-700">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">E-mail du collaborateur *</label>
+                            <input type="email" id="new-user-email" required placeholder="prenom.nom@eiffage.com" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Rôle attribué</label>
+                            <select id="new-user-role" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none font-medium">
+                                <option value="technician">Technicien (Saisie de fiches)</option>
+                                <option value="admin">Administrateur (Modèles + ses fiches)</option>
+                                <option value="superadmin">Super-Administrateur (Accès Total)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" class="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-lg transition flex justify-center items-center gap-1.5 shadow">
+                                <i class="fa-solid fa-paper-plane"></i> Envoyer l'invitation par e-mail
+                            </button>
+                        </div>
+                    </form>
 
-					<!-- Tableau des utilisateurs -->
-					<div class="overflow-x-auto border border-slate-700 rounded-lg">
-						<table class="w-full text-left text-xs text-slate-300">
-							<thead class="bg-slate-900 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-700">
-								<tr>
-									<th class="p-3">Utilisateur / E-mail</th>
-									<th class="p-3">Rôle actuel</th>
-									<th class="p-3">Date de création</th>
-									<th class="p-3 text-right">Actions</th>
-								</tr>
-							</thead>
-							<tbody id="users-table-body" class="divide-y divide-slate-700/50">
-								<tr><td colspan="4" class="text-center py-6 text-slate-500">Chargement des utilisateurs...</td></tr>
-							</tbody>
-						</table>
-					</div>
-				</div>
+                    <!-- Tableau des utilisateurs existants -->
+                    <div class="overflow-x-auto border border-slate-700 rounded-lg">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-900 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-700">
+                                <tr>
+                                    <th class="p-3">Utilisateur / E-mail</th>
+                                    <th class="p-3">Rôle actuel</th>
+                                    <th class="p-3">Date de création</th>
+                                    <th class="p-3 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body" class="divide-y divide-slate-700/50">
+                                <tr><td colspan="4" class="text-center py-6 text-slate-500">Chargement des utilisateurs...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
         </main>
     </div>
@@ -505,26 +530,131 @@
 
         let canvasTech, ctxTech, canvasClient, ctxClient;
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            initCanvases();
-            lucide.createIcons();
-            document.getElementById('meta-date').valueAsDate = new Date();
+       window.addEventListener('DOMContentLoaded', async () => {
+		initCanvases();
+		lucide.createIcons();
+		document.getElementById('meta-date').valueAsDate = new Date();
 
-            const { data: { session } } = await _supabase.auth.getSession();
-            if (session) {
-                currentUser = session.user;
-                await fetchUserProfile();
-                showAppScreen();
-            } else {
-                showAuthScreen();
-            }
-        });
+		// 👇 Écoute si l'utilisateur arrive via un lien d'e-mail de réinitialisation
+		_supabase.auth.onAuthStateChange(async (event, session) => {
+			if (event === 'PASSWORD_RECOVERY') {
+				showAuthView('reset');
+			}
+		});
+
+		const { data: { session } } = await _supabase.auth.getSession();
+		if (session) {
+			currentUser = session.user;
+			await fetchUserProfile();
+			showAppScreen();
+		} else {
+			showAuthScreen();
+		}
+	});
 
         function showAuthScreen() {
             document.getElementById('auth-screen').classList.remove('hidden');
             document.getElementById('app-screen').classList.add('hidden');
         }
 
+
+		// --- GESTION DES VUES D'AUTHENTIFICATION ---
+		function showAuthView(viewName) {
+			document.getElementById('form-login').classList.add('hidden');
+			document.getElementById('form-forgot').classList.add('hidden');
+			document.getElementById('form-reset-password').classList.add('hidden');
+			document.getElementById('auth-error').innerText = '';
+			document.getElementById('auth-success').innerText = '';
+
+			if (viewName === 'login') {
+				document.getElementById('auth-title').innerText = "Gestion des autocontrôles";
+				document.getElementById('auth-subtitle').innerText = "Connexion sécurisée Supabase Cloud";
+				document.getElementById('form-login').classList.remove('hidden');
+			} else if (viewName === 'forgot') {
+				document.getElementById('auth-title').innerText = "Mot de passe oublié";
+				document.getElementById('auth-subtitle').innerText = "Récupération de compte";
+				document.getElementById('form-forgot').classList.remove('hidden');
+			} else if (viewName === 'reset') {
+				document.getElementById('auth-title').innerText = "Nouveau mot de passe";
+				document.getElementById('auth-subtitle').innerText = "Définissez votre accès";
+				document.getElementById('form-reset-password').classList.remove('hidden');
+			}
+		}
+
+		// 1. Envoi de l'e-mail de réinitialisation / création de mot de passe
+		async function handleForgotPassword(e) {
+			e.preventDefault();
+			const email = document.getElementById('forgot-email').value.trim();
+			const redirectUrl = window.location.origin + window.location.pathname;
+
+			const { error } = await _supabase.auth.resetPasswordForEmail(email, {
+				redirectTo: redirectUrl
+			});
+
+			if (error) {
+				document.getElementById('auth-error').innerText = "Erreur : " + error.message;
+			} else {
+				document.getElementById('auth-success').innerText = "✅ E-mail envoyé ! Vérifiez votre boîte de réception (et vos spams).";
+				document.getElementById('forgot-email').value = '';
+			}
+		}
+
+		// 2. Définition et enregistrement du nouveau mot de passe
+		async function handleUpdateNewPassword(e) {
+			e.preventDefault();
+			const newPassword = document.getElementById('new-password-val').value;
+
+			const { data, error } = await _supabase.auth.updateUser({
+				password: newPassword
+			});
+
+			if (error) {
+				document.getElementById('auth-error').innerText = "Erreur : " + error.message;
+			} else {
+				alert('✅ Mot de passe enregistré avec succès ! Connexion en cours...');
+				currentUser = data.user;
+				await fetchUserProfile();
+				showAppScreen();
+			}
+		}
+
+		// 3. Invitation par e-mail d'un nouveau collaborateur depuis l'Admin
+		async function handleInviteUser(e) {
+			e.preventDefault();
+			const email = document.getElementById('new-user-email').value.trim();
+			const role = document.getElementById('new-user-role').value;
+			const redirectUrl = window.location.origin + window.location.pathname;
+
+			// Création du compte avec mot de passe temporaire aléatoire
+			const tempPassword = 'Eif-' + Math.random().toString(36).slice(-8) + '!' + Date.now();
+
+			const { data, error } = await _supabase.auth.signUp({
+				email: email,
+				password: tempPassword,
+				options: { data: { role: role } }
+			});
+
+			if (error) {
+				alert('Erreur création : ' + error.message);
+				return;
+			}
+
+			// Enregistrement du profil dans Supabase
+			if (data.user) {
+				await _supabase.from('profiles').upsert([{
+					id: data.user.id,
+					email: email,
+					role: role
+				}]);
+			}
+
+			// Déclenchement automatique de l'e-mail pour que l'utilisateur choisisse son mot de passe
+			await _supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+
+			alert(`✅ Invitation envoyée à ${email} ! Un e-mail a été envoyé pour qu'il définisse son mot de passe.`);
+			document.getElementById('new-user-email').value = '';
+			await fetchUsersList();
+		}
         async function showAppScreen() {
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('app-screen').classList.remove('hidden');
